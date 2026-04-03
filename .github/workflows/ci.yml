@@ -19,3 +19,32 @@ jobs:
       - run: pip install ruff
       - run: ruff check .
       - run: ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          pip install -e ".[test]"
+      - name: Run Linux-compatible tests
+        run: |
+          python -m pytest tests/ \
+            --ignore=tests/test_desktop_tools.py \
+            -v --tb=short
+      - name: Upload coverage
+        if: matrix.python-version == '3.12'
+        run: |
+          pip install pytest-cov
+          python -m pytest tests/ --ignore=tests/test_desktop_tools.py --cov=src --cov-report=xml --cov-report=term-missing
+      - uses: actions/upload-artifact@v4
+        if: matrix.python-version == '3.12'
+        with:
+          name: coverage
+          path: coverage.xml

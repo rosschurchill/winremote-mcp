@@ -279,26 +279,55 @@ Before deploying:
 
 ## Reporting Vulnerabilities
 
-Found a security issue? Please report privately:
+We take security vulnerabilities seriously. If you discover a security issue, please report it responsibly.
 
-1. **Email**: Create an issue titled "Security" on GitHub (we'll provide a private contact)
-2. **Do not** post exploits or vulnerabilities publicly
-3. We aim to respond within 48 hours
+**Do not** open public GitHub issues for security vulnerabilities.
 
-## Roadmap
+### How to Report
 
-Security features planned for future releases:
+1. Email the maintainer directly via GitHub Security Advisories:
+   - Go to: https://github.com/dddabtc/winremote-mcp/security/advisories/new
+   - Select "Report a vulnerability"
+   - Provide a detailed description, steps to reproduce, and impact assessment
 
-- [ ] `--enable-tier3` / `--disable-tier2` CLI flags
-- [ ] `--tools snapshot,click,type` granular tool selection
-- [ ] Environment variable: `WINREMOTE_ENABLED_TOOLS`
-- [ ] Config file support (`winremote.toml`)
-- [ ] Per-tool rate limiting
-- [ ] IP allowlist
-- [ ] Audit logging to file/syslog
-- [ ] Session timeouts
-- [ ] Tool usage statistics
+2. Alternatively, email the maintainer directly with:
+   - Description of the vulnerability
+   - Steps to reproduce
+   - Version(s) affected
+   - Any known mitigations
+
+### Response Timeline
+
+- **Acknowledgement**: Within 48 hours
+- **Initial Assessment**: Within 7 days
+- **Fix timeline**: Depends on severity (critical: ASAP, low: next release)
+
+### Scope
+
+The following are in scope for security reports:
+- Authentication/authorization bypasses
+- Shell command injection
+- Arbitrary file read/write
+- Privilege escalation via the MCP tools
+- Sensitive data exposure through API endpoints
+
+The following are **not** security vulnerabilities:
+- Lack of TLS (unless credentials transmitted in clear text)
+- Lack of network isolation (this is a deployment decision)
+- User-enabling Tier 3 tools on an untrusted network
+
+## Security Implemented
+
+The following security controls are available and documented:
+
+- ✅ Bearer token authentication (`--auth-key`)
+- ✅ IP allowlist (`--ip-allowlist`)
+- ✅ Tier-based tool risk classification (Tier 1/2/3)
+- ✅ Per-tool enable/disable (`--tools`)
+- ✅ Config file support (`winremote.toml`)
+- ✅ TLS/HTTPS support
+- ✅ Least-privilege operation (no admin required for most tools)
 
 ---
 
-**Remember**: winremote-mcp is designed for trusted environments. The combination of desktop control + shell access is extremely powerful. Always apply the principle of least privilege.
+**Reminder**: winremote-mcp grants significant system access. Deploy on trusted networks only. Always use `--auth-key` when accessible from any network other than localhost.

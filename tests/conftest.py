@@ -50,11 +50,29 @@ for mod_name in _mock_modules:
         m.__spec__ = None
         sys.modules[mod_name] = m
 
-# Now import pyautogui safely
-import pyautogui  # noqa: E402
+# Mock pyautogui on non-Windows (no X11/display available)
+try:
+    import pyautogui  # noqa: E402
+    pyautogui.FAILSAFE = False
+    pyautogui.PAUSE = 0
+except Exception:
+    # Create a full mock pyautogui so test_desktop_tools.py can at least import
+    import types
+    _mock_pyautogui = types.ModuleType("pyautogui")
+    for _attr in ["click", "doubleClick", "moveTo", "drag", "scroll", "hscroll",
+                  "hotkey", "press", "typewrite", "write", "position", "screenshot",
+                  "keyDown", "keyUp", "FAILSAFE", "PAUSE"]:
+        setattr(_mock_pyautogui, _attr, MagicMock())
+    sys.modules["pyautogui"] = _mock_pyautogui
+    globals()["pyautogui"] = _mock_pyautogui
 
-pyautogui.FAILSAFE = False
-pyautogui.PAUSE = 0
+# Now import pyautogui safely (graceful fallback on headless Linux)
+try:
+    import pyautogui  # noqa: E402
+    pyautogui.FAILSAFE = False
+    pyautogui.PAUSE = 0
+except Exception:
+    pyautogui = None  # type: ignore
 
 import pytest  # noqa: E402
 
@@ -62,14 +80,15 @@ import pytest  # noqa: E402
 @pytest.fixture(autouse=True)
 def _reset_pyautogui(monkeypatch):
     """Prevent any real mouse/keyboard actions during tests."""
-    monkeypatch.setattr(pyautogui, "click", MagicMock())
-    monkeypatch.setattr(pyautogui, "doubleClick", MagicMock())
-    monkeypatch.setattr(pyautogui, "moveTo", MagicMock())
-    monkeypatch.setattr(pyautogui, "drag", MagicMock())
-    monkeypatch.setattr(pyautogui, "scroll", MagicMock())
-    monkeypatch.setattr(pyautogui, "hscroll", MagicMock())
-    monkeypatch.setattr(pyautogui, "hotkey", MagicMock())
-    monkeypatch.setattr(pyautogui, "press", MagicMock())
-    monkeypatch.setattr(pyautogui, "typewrite", MagicMock())
-    monkeypatch.setattr(pyautogui, "write", MagicMock())
-    monkeypatch.setattr(pyautogui, "position", MagicMock(return_value=(500, 500)))
+    if pyautogui is not None:
+        monkeypatch.setattr(pyautogui, "click", MagicMock())
+        monkeypatch.setattr(pyautogui, "doubleClick", MagicMock())
+        monkeypatch.setattr(pyautogui, "moveTo", MagicMock())
+        monkeypatch.setattr(pyautogui, "drag", MagicMock())
+        monkeypatch.setattr(pyautogui, "scroll", MagicMock())
+        monkeypatch.setattr(pyautogui, "hscroll", MagicMock())
+        monkeypatch.setattr(pyautogui, "hotkey", MagicMock())
+        monkeypatch.setattr(pyautogui, "press", MagicMock())
+        monkeypatch.setattr(pyautogui, "typewrite", MagicMock())
+        monkeypatch.setattr(pyautogui, "write", MagicMock())
+        monkeypatch.setattr(pyautogui, "position", MagicMock(return_value=(500, 500)))
