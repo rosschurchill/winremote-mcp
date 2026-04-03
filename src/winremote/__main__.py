@@ -64,6 +64,24 @@ async def health_check(request):
     return JSONResponse({"status": "ok", "version": __version__})
 
 
+@mcp.custom_route("/mcp", methods=["GET"])
+async def mcp_get_probe(request):
+    """Return 405 for session-less GET probes to improve transport compatibility."""
+    session_id = request.headers.get("mcp-session-id")
+    accept = (request.headers.get("accept") or "").lower()
+    if not session_id and "text/event-stream" in accept:
+        return JSONResponse(
+            {"jsonrpc": "2.0", "id": "method-not-allowed", "error": {"code": -32600, "message": "Method Not Allowed"}},
+            status_code=405,
+            headers={"Allow": "POST, GET"},
+        )
+    return JSONResponse(
+        {"jsonrpc": "2.0", "id": "bad-request", "error": {"code": -32600, "message": "Bad Request: Missing session ID"}},
+        status_code=400,
+        headers={"Allow": "POST, GET"},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

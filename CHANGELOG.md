@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.14] - 2026-04-03
+
+### Fixed
+
+- Return HTTP 405 for session-less `GET /mcp` probe requests with SSE accept headers, improving compatibility with MCP inspector/probe clients before initialization.
+
 ## [0.4.13] - 2026-04-03
 
 ### Fixed
