@@ -34,6 +34,14 @@ dependencies = [
 [project.scripts]
 winremote-mcp = "winremote.__main__:cli"
 
+[project.urls]
+Homepage = "https://github.com/dddabtc/winremote-mcp"
+Repository = "https://github.com/dddabtc/winremote-mcp"
+Issues = "https://github.com/dddabtc/winremote-mcp/issues"
+Documentation = "https://github.com/dddabtc/winremote-mcp#readme"
+Changelog = "https://github.com/dddabtc/winremote-mcp/releases"
+Security = "https://github.com/dddabtc/winremote-mcp/security/policy"
+
 [project.optional-dependencies]
 ocr = ["pytesseract>=0.3.10"]
 dev = ["ruff>=0.9.0", "pytest>=8.0.0"]
