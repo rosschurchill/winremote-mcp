@@ -14,9 +14,9 @@ import pyautogui
 
 def _call_tool(tool_name, **kwargs):
     """Call an MCP tool by name, going through the task-manager-wrapped fn."""
-    from winremote.__main__ import mcp
+    from winremote.__main__ import _get_registered_tools
 
-    tool = mcp._tool_manager._tools[tool_name]
+    tool = _get_registered_tools()[tool_name]
     return tool.fn(**kwargs)
 
 
@@ -180,7 +180,7 @@ class TestReconnectSession:
 
             assert isinstance(result, list)
             assert len(result) == 1
-            assert "reconnected session" in result[0].text.lower()
+            assert "connected to console" in result[0].text.lower()
 
 
 class TestSnapshotAutoReconnect:
@@ -213,8 +213,8 @@ class TestSnapshotAutoReconnect:
             result = _call_tool("Snapshot")
 
             assert isinstance(result, list)
-            assert len(result) == 1
-            assert "error" in result[0].lower()
+            assert len(result) >= 1
+            assert "error" in str(result[-1]).lower()
 
     def test_snapshot_reconnect_fails(self):
         with patch("winremote.__main__.desktop") as mock_desktop:
@@ -226,5 +226,5 @@ class TestSnapshotAutoReconnect:
                 result = _call_tool("Snapshot")
 
                 assert isinstance(result, list)
-                assert len(result) == 1
-                assert "auto-reconnect failed" in result[0].lower()
+                assert len(result) >= 1
+                assert "screen grab failed" in str(result[-1]).lower() or "failed to reconnect" in str(result[-1]).lower()

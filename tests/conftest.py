@@ -5,6 +5,7 @@ Mocks win32 and display-dependent modules so tests run on headless Linux.
 
 from __future__ import annotations
 
+import mimetypes
 import os
 import sys
 from unittest.mock import MagicMock
@@ -14,6 +15,16 @@ from unittest.mock import MagicMock
 # ---------------------------------------------------------------------------
 
 os.environ.setdefault("DISPLAY", ":0")
+
+# Python 3.12 mimetypes checks for winreg importability, so our mocked winreg
+# can accidentally trigger Windows-registry MIME loading on Linux. Neutralize
+# that code path before importing winremote/fastmcp.
+def _skip_windows_registry(*args, **kwargs):
+    return None
+
+mimetypes.read_windows_registry = _skip_windows_registry
+mimetypes.MimeTypes.read_windows_registry = _skip_windows_registry
+mimetypes.MimeTypes._read_windows_registry = _skip_windows_registry
 
 # Mock all problematic native modules
 _mock_modules = [
