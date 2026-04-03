@@ -76,7 +76,11 @@ async def mcp_get_probe(request):
             headers={"Allow": "POST, GET"},
         )
     return JSONResponse(
-        {"jsonrpc": "2.0", "id": "bad-request", "error": {"code": -32600, "message": "Bad Request: Missing session ID"}},
+        {
+            "jsonrpc": "2.0",
+            "id": "bad-request",
+            "error": {"code": -32600, "message": "Bad Request: Missing session ID"},
+        },
         status_code=400,
         headers={"Allow": "POST, GET"},
     )
