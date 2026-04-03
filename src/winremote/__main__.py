@@ -15,6 +15,7 @@ from click.core import ParameterSource
 
 try:
     import pyautogui
+
     PYAUTOGUI_IMPORT_ERROR: Exception | None = None
 except Exception as e:  # pragma: no cover - environment-specific import failure
     pyautogui = None

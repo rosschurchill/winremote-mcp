@@ -11,6 +11,7 @@ from typing import Optional
 
 try:
     import pyautogui
+
     PYAUTOGUI_IMPORT_ERROR: Exception | None = None
 except Exception as e:  # pragma: no cover - environment-specific import failure
     pyautogui = None
@@ -47,9 +48,7 @@ except Exception:
 def _require_pyautogui() -> None:
     if pyautogui is None:
         detail = f" ({PYAUTOGUI_IMPORT_ERROR})" if PYAUTOGUI_IMPORT_ERROR else ""
-        raise RuntimeError(
-            "pyautogui is unavailable; desktop control requires an interactive GUI session" + detail
-        )
+        raise RuntimeError("pyautogui is unavailable; desktop control requires an interactive GUI session" + detail)
 
 
 def _tobool(v: bool | str) -> bool:
