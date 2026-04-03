@@ -227,4 +227,5 @@ class TestSnapshotAutoReconnect:
 
                 assert isinstance(result, list)
                 assert len(result) >= 1
-                assert "screen grab failed" in str(result[-1]).lower() or "failed to reconnect" in str(result[-1]).lower()
+                error_text = str(result[-1]).lower()
+                assert "screen grab failed" in error_text or "failed to reconnect" in error_text
