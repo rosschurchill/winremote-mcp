@@ -9,7 +9,12 @@ import locale
 from dataclasses import dataclass
 from typing import Optional
 
-import pyautogui
+try:
+    import pyautogui
+    PYAUTOGUI_IMPORT_ERROR: Exception | None = None
+except Exception as e:  # pragma: no cover - environment-specific import failure
+    pyautogui = None
+    PYAUTOGUI_IMPORT_ERROR = e
 
 # Win32 imports (will fail on non-Windows — caught at tool level)
 try:
@@ -37,6 +42,14 @@ except Exception:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _require_pyautogui() -> None:
+    if pyautogui is None:
+        detail = f" ({PYAUTOGUI_IMPORT_ERROR})" if PYAUTOGUI_IMPORT_ERROR else ""
+        raise RuntimeError(
+            "pyautogui is unavailable; desktop control requires an interactive GUI session" + detail
+        )
 
 
 def _tobool(v: bool | str) -> bool:
@@ -226,6 +239,7 @@ def focus_window(title: Optional[str] = None, handle: Optional[int] = None) -> s
 def minimize_all() -> str:
     """Win+D — show desktop."""
     try:
+        _require_pyautogui()
         pyautogui.hotkey("win", "d")
         return "Minimized all windows"
     except Exception as e:

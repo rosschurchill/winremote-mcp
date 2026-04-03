@@ -51,17 +51,17 @@ pip install winremote-mcp
 
 **Quick start (no auth, trusted LAN only):**
 ```cmd
-winremote serve --host 0.0.0.0 --port 8090
+winremote-mcp --host 0.0.0.0 --port 8090
 ```
 
 **With API key (recommended for remote access):**
 ```cmd
-winremote serve --host 0.0.0.0 --port 8090 --auth-key YOUR_SECRET_KEY
+winremote-mcp --host 0.0.0.0 --port 8090 --auth-key YOUR_SECRET_KEY
 ```
 
 **Auto-start on boot:**
 ```cmd
-winremote install
+winremote-mcp install
 ```
 
 #### Step 3 — Connect OpenClaw
@@ -118,7 +118,7 @@ mkcert -install && mkcert 192.168.1.100
 
 **Step 2 — Start with TLS:**
 ```cmd
-winremote serve --host 0.0.0.0 --port 8090 ^
+winremote-mcp --host 0.0.0.0 --port 8090 ^
   --auth-key YOUR_SECRET_KEY ^
   --ssl-certfile cert.pem ^
   --ssl-keyfile key.pem
@@ -148,7 +148,7 @@ winremote serve --host 0.0.0.0 --port 8090 ^
 Some MCP clients (like Claude Desktop) use OAuth instead of API keys. Enable it:
 
 ```cmd
-winremote serve --host 0.0.0.0 --port 8090 ^
+winremote-mcp --host 0.0.0.0 --port 8090 ^
   --ssl-certfile cert.pem --ssl-keyfile key.pem ^
   --oauth-client-id my-client --oauth-client-secret my-secret
 ```
@@ -209,7 +209,7 @@ openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -node
 
 **Step 2 — Start the server with TLS:**
 ```bash
-winremote serve --ssl-certfile cert.pem --ssl-keyfile key.pem --host 0.0.0.0 --port 8090
+winremote-mcp --ssl-certfile cert.pem --ssl-keyfile key.pem --host 0.0.0.0 --port 8090
 ```
 
 Or in `winremote.toml`:
@@ -245,7 +245,7 @@ When active, the startup banner shows **`[https ON]`** and the server listens on
 WinRemote now ships a built-in OAuth 2.0 Authorization Server, so clients like Claude Desktop can authenticate via OAuth instead of a static API key.
 
 ```bash
-winremote serve --ssl-certfile cert.pem --ssl-keyfile key.pem \
+winremote-mcp --ssl-certfile cert.pem --ssl-keyfile key.pem \
                 --oauth-client-id my-client --oauth-client-secret my-secret
 ```
 
@@ -388,7 +388,7 @@ Supports both single IPs and CIDR ranges (IPv4/IPv6). Non-allowlisted clients re
 To enable HTTPS, provide SSL certificate and key files:
 
 ```bash
-winremote serve --ssl-certfile cert.pem --ssl-keyfile key.pem
+winremote-mcp --ssl-certfile cert.pem --ssl-keyfile key.pem
 ```
 
 Or in `winremote.toml`:
@@ -409,7 +409,7 @@ WinRemote MCP includes a built-in OAuth 2.0 Authorization Server, compatible wit
 
 Enable it with:
 ```bash
-winremote serve --oauth-client-id my-client --oauth-client-secret my-secret
+winremote-mcp --oauth-client-id my-client --oauth-client-secret my-secret
 ```
 
 Or in `winremote.toml`:

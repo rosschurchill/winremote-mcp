@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.11] - 2026-04-03
+
+### Fixed
+
+- Made the CLI import-safe on non-Windows/Linux CI hosts by deferring `pyautogui` failures until desktop tools are actually used. This allows `pip install winremote-mcp` and `winremote-mcp --help` to succeed in headless environments used by package checkers.
+- Added a `winremote` console-script alias alongside `winremote-mcp`.
+- Corrected README command examples to use the shipped `winremote-mcp` executable.
+
 ## [0.4.10] - 2026-03-23
 
 ### Fixed

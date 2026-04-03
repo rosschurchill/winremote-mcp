@@ -11,8 +11,14 @@ from datetime import datetime
 from pathlib import Path
 
 import click
-import pyautogui
 from click.core import ParameterSource
+
+try:
+    import pyautogui
+    PYAUTOGUI_IMPORT_ERROR: Exception | None = None
+except Exception as e:  # pragma: no cover - environment-specific import failure
+    pyautogui = None
+    PYAUTOGUI_IMPORT_ERROR = e
 from dotenv import load_dotenv
 from fastmcp import FastMCP
 from mcp.types import ImageContent, TextContent
@@ -33,8 +39,9 @@ from winremote.tiers import ALL_TOOLS, get_tier_names, parse_tool_csv, resolve_e
 
 load_dotenv()
 
-pyautogui.FAILSAFE = False
-pyautogui.PAUSE = 0.05
+if pyautogui is not None:
+    pyautogui.FAILSAFE = False
+    pyautogui.PAUSE = 0.05
 
 mcp = FastMCP(
     "winremote-mcp",
@@ -67,8 +74,22 @@ def _tobool(v: bool | str) -> bool:
     return str(v).lower() in ("true", "1", "yes")
 
 
+def _require_pyautogui(tool_name: str = "This tool") -> str | None:
+    """Return an error string if pyautogui is unavailable, else None."""
+    if pyautogui is not None:
+        return None
+    detail = f" ({PYAUTOGUI_IMPORT_ERROR})" if PYAUTOGUI_IMPORT_ERROR else ""
+    return (
+        f"Error: pyautogui is unavailable — {tool_name} requires an interactive desktop session"
+        f" with GUI support{detail}."
+    )
+
+
 def _check_win32(tool_name: str = "This tool") -> str | None:
     """Return an error string if pywin32 is unavailable, else None."""
+    pyautogui_error = _require_pyautogui(tool_name)
+    if pyautogui_error:
+        return pyautogui_error
     if not desktop.HAS_WIN32:
         return f"Error: pywin32 not installed — {tool_name} requires it. Run `pip install pywin32` on the Windows host."
     return None
