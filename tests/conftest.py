@@ -53,15 +53,32 @@ for mod_name in _mock_modules:
 # Mock pyautogui on non-Windows (no X11/display available)
 try:
     import pyautogui  # noqa: E402
+
     pyautogui.FAILSAFE = False
     pyautogui.PAUSE = 0
 except Exception:
     # Create a full mock pyautogui so test_desktop_tools.py can at least import
     import types
+
     _mock_pyautogui = types.ModuleType("pyautogui")
-    for _attr in ["click", "doubleClick", "moveTo", "drag", "scroll", "hscroll",
-                  "hotkey", "press", "typewrite", "write", "position", "screenshot",
-                  "keyDown", "keyUp", "FAILSAFE", "PAUSE"]:
+    for _attr in [
+        "click",
+        "doubleClick",
+        "moveTo",
+        "drag",
+        "scroll",
+        "hscroll",
+        "hotkey",
+        "press",
+        "typewrite",
+        "write",
+        "position",
+        "screenshot",
+        "keyDown",
+        "keyUp",
+        "FAILSAFE",
+        "PAUSE",
+    ]:
         setattr(_mock_pyautogui, _attr, MagicMock())
     sys.modules["pyautogui"] = _mock_pyautogui
     globals()["pyautogui"] = _mock_pyautogui
@@ -69,6 +86,7 @@ except Exception:
 # Now import pyautogui safely (graceful fallback on headless Linux)
 try:
     import pyautogui  # noqa: E402
+
     pyautogui.FAILSAFE = False
     pyautogui.PAUSE = 0
 except Exception:
