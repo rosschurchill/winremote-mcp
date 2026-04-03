@@ -1735,6 +1735,8 @@ def cli(
         _shown = False
 
         def filter(self, record):
+            if os.environ.get("WINREMOTE_QUIET") in {"1", "true", "yes"}:
+                return True
             if not self._shown and "Application startup complete" in record.getMessage():
                 self._shown = True
                 auth_line = "[auth ON]" if auth_key else "[no auth]"
