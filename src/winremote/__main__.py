@@ -30,7 +30,8 @@ except ImportError:
     from fastmcp.tools import ToolAnnotations
 
 from starlette.middleware import Middleware
-from starlette.responses import JSONResponse
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 from winremote import __version__, desktop, network, ocr, process_mgr, recording, registry, services
 from winremote.config import discover_config_path, load_config
@@ -39,6 +40,34 @@ from winremote.taskmanager import manager as task_manager
 from winremote.tiers import ALL_TOOLS, get_tier_names, parse_tool_csv, resolve_enabled_tools
 
 load_dotenv()
+
+
+def _patch_fastmcp_streamable_http_get_probe() -> None:
+    """Make session-less GET /mcp probes return 405 instead of 400."""
+    try:
+        from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+    except Exception:
+        return
+
+    original = getattr(StreamableHTTPSessionManager, "handle_request", None)
+    if original is None or getattr(StreamableHTTPSessionManager, "_winremote_get_probe_patched", False):
+        return
+
+    async def patched_handle_request(self, scope, receive, send):
+        request = Request(scope, receive)
+        if request.method == "GET" and not request.headers.get("mcp-session-id"):
+            accept = (request.headers.get("accept") or "").lower()
+            if "text/event-stream" in accept:
+                response = Response(status_code=405, headers={"Allow": "POST, GET"})
+                await response(scope, receive, send)
+                return
+        return await original(self, scope, receive, send)
+
+    StreamableHTTPSessionManager.handle_request = patched_handle_request
+    StreamableHTTPSessionManager._winremote_get_probe_patched = True
+
+
+_patch_fastmcp_streamable_http_get_probe()
 
 if pyautogui is not None:
     pyautogui.FAILSAFE = False
@@ -64,26 +93,6 @@ async def health_check(request):
     return JSONResponse({"status": "ok", "version": __version__})
 
 
-@mcp.custom_route("/mcp", methods=["GET"])
-async def mcp_get_probe(request):
-    """Return 405 for session-less GET probes to improve transport compatibility."""
-    session_id = request.headers.get("mcp-session-id")
-    accept = (request.headers.get("accept") or "").lower()
-    if not session_id and "text/event-stream" in accept:
-        return JSONResponse(
-            {"jsonrpc": "2.0", "id": "method-not-allowed", "error": {"code": -32600, "message": "Method Not Allowed"}},
-            status_code=405,
-            headers={"Allow": "POST, GET"},
-        )
-    return JSONResponse(
-        {
-            "jsonrpc": "2.0",
-            "id": "bad-request",
-            "error": {"code": -32600, "message": "Bad Request: Missing session ID"},
-        },
-        status_code=400,
-        headers={"Allow": "POST, GET"},
-    )
 
 
 # ---------------------------------------------------------------------------
