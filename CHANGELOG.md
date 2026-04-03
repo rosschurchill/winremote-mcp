@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.13] - 2026-04-03
+
+### Fixed
+
+- Suppress FastMCP startup banner by default in inspection/catalog environments via `FASTMCP_SHOW_SERVER_BANNER=false`, avoiding non-protocol stderr noise during Glama inspection.
+
 ## [0.4.12] - 2026-04-03
 
 ### Fixed
