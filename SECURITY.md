@@ -1,6 +1,15 @@
 # Security Guide
 
-winremote-mcp exposes powerful Windows automation capabilities. This guide covers the security model, risk levels, and deployment best practices.
+winremote-mcp exposes powerful Windows automation capabilities. This guide covers the security model, risk levels, supported versions, and responsible disclosure process.
+
+## Supported Versions
+
+Security fixes are applied to the latest released version on the `master` branch and published on PyPI. Older releases may not receive backported fixes.
+
+| Version | Supported |
+|---------|-----------|
+| Latest release | ✅ |
+| Older releases | ❌ |
 
 ## Quick Start
 
@@ -285,16 +294,12 @@ We take security vulnerabilities seriously. If you discover a security issue, pl
 
 ### How to Report
 
-1. Email the maintainer directly via GitHub Security Advisories:
-   - Go to: https://github.com/dddabtc/winremote-mcp/security/advisories/new
-   - Select "Report a vulnerability"
-   - Provide a detailed description, steps to reproduce, and impact assessment
+Submit a private report through GitHub Security Advisories:
+- Go to: https://github.com/dddabtc/winremote-mcp/security/advisories/new
+- Select "Report a vulnerability"
+- Provide a detailed description, steps to reproduce, affected versions, and impact assessment
 
-2. Alternatively, email the maintainer directly with:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Version(s) affected
-   - Any known mitigations
+This is the preferred and supported channel for vulnerability disclosure. Please do not disclose the issue publicly until a fix is available.
 
 ### Response Timeline
 
