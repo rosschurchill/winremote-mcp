@@ -782,7 +782,6 @@ def Notification(title: str = "winremote-mcp", message: str = "") -> str:
         return f"Notification error: {e}"
 
 
-@mcp.tool(
 
 @mcp.tool(
     annotations=ToolAnnotations(
