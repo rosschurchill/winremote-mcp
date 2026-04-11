@@ -783,6 +783,59 @@ def Notification(title: str = "winremote-mcp", message: str = "") -> str:
 
 
 @mcp.tool(
+
+@mcp.tool(
+    annotations=ToolAnnotations(
+        title="PlaySound",
+        destructiveHint=False,
+        openWorldHint=False,
+    )
+)
+def PlaySound(path: str = "", url: str = "") -> str:
+    """Play an audio file on the Windows host.
+
+    Args:
+        path: Local file path to audio file (.wav, .mp3, .ogg).
+        url: URL to audio file (will be downloaded first).
+    """
+    import tempfile
+    import urllib.request
+    try:
+        if not path and not url:
+            return "Error: provide either path or url"
+        if url and not path:
+            # Download to temp file
+            suffix = ".wav"
+            if ".mp3" in url: suffix = ".mp3"
+            elif ".ogg" in url: suffix = ".ogg"
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            urllib.request.urlretrieve(url, tmp.name)
+            path = tmp.name
+        # Play using PowerShell
+        ps_command = f"""
+        Add-Type -AssemblyName System.Windows.Forms
+        $player = New-Object System.Media.SoundPlayer
+        $player.SoundLocation = "{path}"
+        $player.Play()
+        """
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_command],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            # Fallback: try Media.SoundPlayer for WAV only, or use wmplayer
+            ps_fallback = f"(New-Object System.Media.SoundPlayer \"{path}\").PlaySync()"
+            result2 = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_fallback],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result2.returncode != 0:
+                return f"PlaySound error: {result.stderr or result2.stderr}"
+        return f"Played: {path}"
+    except subprocess.TimeoutExpired:
+        return f"PlaySound timed out (audio may still be playing)"
+    except Exception as e:
+        return f"PlaySound error: {e}"
     annotations=ToolAnnotations(
         title="LockScreen",
         destructiveHint=True,

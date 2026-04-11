@@ -24,6 +24,7 @@ TOOL_TIERS = {
         "Wait",
         "GetTaskStatus",
         "GetRunningTasks",
+        "PlaySound",
     },
     "tier2": {
         "Click",

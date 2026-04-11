@@ -500,7 +500,7 @@ Tools are organized into three risk tiers. By default, only Tier 1-2 tools are e
 
 | Tier | Risk | Default | Examples |
 |------|------|---------|----------|
-| **Tier 1** | Read-only | ✅ Enabled | Snapshot, GetSystemInfo, ListProcesses |
+| **Tier 1** | Read-only | ✅ Enabled | Snapshot, GetSystemInfo, PlaySound |
 | **Tier 2** | Interactive | ✅ Enabled | Click, Type, Shortcut, App |
 | **Tier 3** | Destructive | ❌ Disabled | Shell, FileWrite, KillProcess, RegWrite |
 
