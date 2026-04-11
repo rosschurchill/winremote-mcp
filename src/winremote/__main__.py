@@ -834,7 +834,7 @@ def PlaySound(path: str = "", url: str = "") -> str:
                 return f"PlaySound error: {result.stderr or result2.stderr}"
         return f"Played: {path}"
     except subprocess.TimeoutExpired:
-        return f"PlaySound timed out (audio may still be playing)"
+        return "PlaySound timed out (audio may still be playing)"
     except Exception as e:
         return f"PlaySound error: {e}"
 
