@@ -835,6 +835,8 @@ def PlaySound(path: str = "", url: str = "") -> str:
         return f"PlaySound timed out (audio may still be playing)"
     except Exception as e:
         return f"PlaySound error: {e}"
+
+@mcp.tool(
     annotations=ToolAnnotations(
         title="LockScreen",
         destructiveHint=True,
