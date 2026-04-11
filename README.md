@@ -196,6 +196,12 @@ exclude = ["ScreenRecord"]   # disable specific tools
 
 > **Note:** winremote-mcp is a standard MCP server and works with any MCP-compatible client — Claude Desktop, Cursor, OpenClaw, and others.
 
+## What's New in v0.4.16
+
+### 🔊 PlaySound Tool
+
+New Tier 1 tool to play audio files on the Windows host. Supports `.wav`, `.mp3`, `.ogg` from local path or URL.
+
 ## What's New in v0.4.9
 
 ### 🔒 HTTPS / TLS Support
@@ -523,6 +529,7 @@ See [SECURITY.md](SECURITY.md) for the full security guide.
 | AnnotatedSnapshot | Screenshot with numbered labels on interactive elements |
 | OCR | Extract text from screen via OCR (pytesseract or Windows built-in) |
 | ScreenRecord | Record screen activity as animated GIF |
+| PlaySound | Play audio file on Windows host (.wav/.mp3/.ogg or URL) |
 | **Input** | |
 | Click | Mouse click (left/right/middle, single/double/hover) |
 | Type | Type text at coordinates |
