@@ -805,8 +805,10 @@ def PlaySound(path: str = "", url: str = "") -> str:
         if url and not path:
             # Download to temp file
             suffix = ".wav"
-            if ".mp3" in url: suffix = ".mp3"
-            elif ".ogg" in url: suffix = ".ogg"
+            if ".mp3" in url:
+                suffix = ".mp3"
+            elif ".ogg" in url:
+                suffix = ".ogg"
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             urllib.request.urlretrieve(url, tmp.name)
             path = tmp.name
