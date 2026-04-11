@@ -782,6 +782,7 @@ def Notification(title: str = "winremote-mcp", message: str = "") -> str:
         return f"Notification error: {e}"
 
 
+
 @mcp.tool(
     annotations=ToolAnnotations(
         title="PlaySound",
@@ -798,7 +799,6 @@ def PlaySound(path: str = "", url: str = "") -> str:
     """
     import tempfile
     import urllib.request
-
     try:
         if not path and not url:
             return "Error: provide either path or url"
@@ -821,18 +821,14 @@ def PlaySound(path: str = "", url: str = "") -> str:
         """
         result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", ps_command],
-            capture_output=True,
-            text=True,
-            timeout=30,
+            capture_output=True, text=True, timeout=30,
         )
         if result.returncode != 0:
             # Fallback: try Media.SoundPlayer for WAV only, or use wmplayer
-            ps_fallback = f'(New-Object System.Media.SoundPlayer "{path}").PlaySync()'
+            ps_fallback = f"(New-Object System.Media.SoundPlayer \"{path}\").PlaySync()"
             result2 = subprocess.run(
                 ["powershell", "-NoProfile", "-Command", ps_fallback],
-                capture_output=True,
-                text=True,
-                timeout=30,
+                capture_output=True, text=True, timeout=30,
             )
             if result2.returncode != 0:
                 return f"PlaySound error: {result.stderr or result2.stderr}"
@@ -841,7 +837,6 @@ def PlaySound(path: str = "", url: str = "") -> str:
         return "PlaySound timed out (audio may still be playing)"
     except Exception as e:
         return f"PlaySound error: {e}"
-
 
 @mcp.tool(
     annotations=ToolAnnotations(
