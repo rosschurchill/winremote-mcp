@@ -183,11 +183,11 @@ class TaskManager:
         """Cancel a task by ID."""
         with self._lock:
             task = self._tasks.get(task_id)
-        if task is None:
-            return {"error": f"Task {task_id} not found"}
-        if task.cancel():
-            return {"status": "cancelled", "task_id": task_id, "tool_name": task.tool_name}
-        return {"error": f"Task {task_id} is already {task.status.value}"}
+            if task is None:
+                return {"error": f"Task {task_id} not found"}
+            if task.cancel():
+                return {"status": "cancelled", "task_id": task_id, "tool_name": task.tool_name}
+            return {"error": f"Task {task_id} is already {task.status.value}"}
 
     def list_tasks(self, status: str | None = None) -> list[dict]:
         """List tasks, optionally filtered by status."""

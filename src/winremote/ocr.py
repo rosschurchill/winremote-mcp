@@ -89,7 +89,7 @@ public static class AsyncHelper {{
 }}
 '@ -ReferencedAssemblies "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Runtime.WindowsRuntime.dll"
 
-$path = "{tmp_path.replace(chr(92), chr(92) + chr(92))}"
+$path = '{tmp_path.replace(chr(39), chr(39) + chr(39))}'
 $stream = [System.IO.File]::OpenRead($path)
 $ras = [System.IO.WindowsRuntimeStreamExtensions]::AsRandomAccessStream($stream)
 $decoder = [AsyncHelper]::Await([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($ras))

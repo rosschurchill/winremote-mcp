@@ -125,76 +125,6 @@ def _check_win32(tool_name: str = "This tool") -> str | None:
     return None
 
 
-def _ensure_session_connected() -> str | None:
-    """Reconnect disconnected Windows session to console if needed.
-
-    Returns None on success, error string on failure.
-    """
-    try:
-        # Query current sessions
-        result = subprocess.run(
-            ["query", "session"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-
-        if result.returncode != 0:
-            return f"Failed to query sessions: {result.stderr}"
-
-        session_lines = result.stdout.strip().split("\n")
-        user_session_id = None
-        session_status = None
-
-        # Parse session output to find user session
-        for line in session_lines[1:]:  # Skip header
-            if not line.strip():
-                continue
-            parts = line.split()
-            if len(parts) >= 3:
-                session_name = parts[0]
-                username = parts[1] if parts[1] != ">" else parts[2]
-                session_id = parts[2] if parts[1] != ">" else parts[1]
-                state = parts[3] if parts[1] != ">" else parts[2]
-
-                # Look for a user session (not services or console without user)
-                if (
-                    username
-                    and username.lower() not in ["", "services"]
-                    and session_name.lower() not in ["services", "console"]
-                    and session_id.isdigit()
-                ):
-                    user_session_id = int(session_id)
-                    session_status = state.lower()
-                    break
-
-        if user_session_id is None:
-            return "No user session found to reconnect"
-
-        # If session is already active, no need to reconnect
-        if session_status == "active":
-            return None
-
-        # Reconnect session to console
-        result = subprocess.run(
-            ["tscon", str(user_session_id), "/dest:console"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-
-        if result.returncode == 0:
-            return None  # Success
-        else:
-            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
-            return f"Failed to reconnect session {user_session_id}: {error_msg}"
-
-    except subprocess.TimeoutExpired:
-        return "Session reconnect operation timed out"
-    except Exception as e:
-        return f"Session reconnect error: {e}"
-
-
 # ============================= DESKTOP CONTROL =============================
 
 
@@ -327,7 +257,7 @@ def Type(
         press_enter: Press Enter after typing.
     """
     try:
-        if x and y:
+        if x or y:
             pyautogui.click(x, y)
             time.sleep(0.1)
         if _tobool(clear):
@@ -364,7 +294,7 @@ def Scroll(
         horizontal: Horizontal scroll instead of vertical.
     """
     try:
-        if x and y:
+        if x or y:
             pyautogui.moveTo(x, y)
         if _tobool(horizontal):
             pyautogui.hscroll(amount)
@@ -403,7 +333,7 @@ def Move(
     """
     try:
         if _tobool(drag):
-            if start_x and start_y:
+            if start_x or start_y:
                 pyautogui.moveTo(start_x, start_y)
             pyautogui.drag(x - pyautogui.position()[0], y - pyautogui.position()[1], duration=duration)
             return f"Dragged to ({x},{y})"
@@ -558,7 +488,8 @@ def Shell(command: str, timeout: int = 30, cwd: str = "") -> str:
     """
     try:
         if cwd:
-            command = f"cd {cwd}; {command}"
+            safe_cwd = cwd.replace("'", "''")
+            command = f"Set-Location -LiteralPath '{safe_cwd}'; {command}"
         result = subprocess.run(
             ["powershell", "-NoProfile", "-Command", command],
             capture_output=True,
@@ -801,6 +732,7 @@ def PlaySound(path: str | None = None, url: str | None = None) -> str:
     import tempfile
     import urllib.request
 
+    tmp_path = None
     try:
         if not path and not url:
             return "Error: provide either 'path' (local file) or 'url' (remote file)"
@@ -814,16 +746,18 @@ def PlaySound(path: str | None = None, url: str | None = None) -> str:
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             urllib.request.urlretrieve(url, tmp.name)
             path = tmp.name
+            tmp_path = tmp.name
 
         ext = os.path.splitext(path)[1].lower()
+        # Use single quotes to prevent PowerShell variable expansion / injection
+        safe_path = path.replace("'", "''")
 
         if ext in (".mp3", ".ogg", ".wma", ".m4a"):
-            # Use Windows Media Player COM object for non-WAV formats
-            safe_path = path.replace('"', '`"')
+            # Use WPF MediaPlayer for non-WAV formats
             ps_command = (
                 "Add-Type -AssemblyName presentationCore; "
                 "$p = New-Object System.Windows.Media.MediaPlayer; "
-                f'$p.Open([uri]"{safe_path}"); '
+                f"$p.Open([uri]'{safe_path}'); "
                 "$p.Play(); "
                 "Start-Sleep -Milliseconds 500; "
                 "while ($p.NaturalDuration.HasTimeSpan -and "
@@ -841,8 +775,7 @@ def PlaySound(path: str | None = None, url: str | None = None) -> str:
                 return f"PlaySound error: {result.stderr}"
         else:
             # WAV: use SoundPlayer with PlaySync (blocks until done)
-            safe_path = path.replace('"', '`"')
-            ps_command = f'(New-Object System.Media.SoundPlayer "{safe_path}").PlaySync()'
+            ps_command = f"(New-Object System.Media.SoundPlayer '{safe_path}').PlaySync()"
             result = subprocess.run(
                 ["powershell", "-NoProfile", "-Command", ps_command],
                 capture_output=True,
@@ -857,6 +790,12 @@ def PlaySound(path: str | None = None, url: str | None = None) -> str:
         return "PlaySound timed out (audio may still be playing)"
     except Exception as e:
         return f"PlaySound error: {e}"
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
 
 
 @mcp.tool(
@@ -1099,9 +1038,12 @@ def FileUpload(path: str, data_base64: str) -> str:
         data_base64: Base64-encoded file content.
     """
     try:
+        max_b64_size = 100 * 1024 * 1024  # ~75MB decoded
+        if len(data_base64) > max_b64_size:
+            return "FileUpload error: data exceeds maximum size (100MB base64)"
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        data = base64.b64decode(data_base64)
+        data = base64.b64decode(data_base64, validate=True)
         p.write_bytes(data)
         return f"Written {len(data)} bytes to {path}"
     except Exception as e:
@@ -1436,15 +1378,18 @@ def ScreenRecord(
         max_width: Max width of output GIF (default 800).
     """
     try:
+        duration = min(max(duration, 0.1), 10.0)
+        fps = min(max(fps, 1), 10)
         region = {}
         if left or top or right or bottom:
             region = {"left": left, "top": top, "right": right, "bottom": bottom}
         b64 = recording.record_screen(duration=duration, fps=fps, max_width=max_width, **region)
+        size_kb = (len(b64) * 3 // 4) // 1024
         return [
             ImageContent(type="image", data=b64, mimeType="image/gif"),
             TextContent(
                 type="text",
-                text=f"Recorded {duration}s at {fps}fps ({len(b64) * 3 // 4 // 1024}KB GIF)",
+                text=f"Recorded {duration}s at {fps}fps ({size_kb}KB GIF)",
             ),
         ]
     except Exception as e:
@@ -1497,6 +1442,7 @@ def AnnotatedSnapshot(
                         text=f"AnnotatedSnapshot error (after session reconnect): {retry_error}",
                     )
                 ]
+        native_width = img.width
         if max_width > 0 and img.width > max_width:
             ratio = max_width / img.width
             img = img.resize((max_width, int(img.height * ratio)))
@@ -1522,7 +1468,7 @@ def AnnotatedSnapshot(
             font = ImageFont.load_default()
 
         # Scale factor if image was resized
-        scale = img.width / ImageGrab.grab().width if img.width != ImageGrab.grab().width else 1.0
+        scale = img.width / native_width if img.width != native_width else 1.0
 
         element_lines = []
         for el in elements[:max_elements]:
@@ -1922,9 +1868,12 @@ set PYTHONIOENCODING=utf-8
         return
 
     # Create scheduled task using the batch file
-    task_cmd = f'schtasks /Create /SC ONSTART /TN "WinRemoteMCP" /TR "{bat_path}" /RU {username} /F'
     try:
-        result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
+        result = subprocess.run(
+            ["schtasks", "/Create", "/SC", "ONSTART", "/TN", "WinRemoteMCP", "/TR", bat_path, "/RU", username, "/F"],
+            capture_output=True,
+            text=True,
+        )
         if result.returncode == 0:
             click.echo("[OK] Scheduled task 'WinRemoteMCP' created for auto-start.")
             click.echo("The server will start automatically on system boot.")
@@ -1940,9 +1889,12 @@ def uninstall():
     """Remove the WinRemoteMCP scheduled task."""
     import os
 
-    task_cmd = 'schtasks /Delete /TN "WinRemoteMCP" /F'
     try:
-        result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
+        result = subprocess.run(
+            ["schtasks", "/Delete", "/TN", "WinRemoteMCP", "/F"],
+            capture_output=True,
+            text=True,
+        )
         if result.returncode == 0:
             click.echo("[OK] Scheduled task 'WinRemoteMCP' removed.")
         else:

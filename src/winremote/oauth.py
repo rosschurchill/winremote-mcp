@@ -268,11 +268,11 @@ def build_oauth_routes(
         # Consume code (one-time use)
         del store.codes[code_value]
 
-        # Validate client_secret if configured
+        # Validate client_secret if the client has one configured
         client = store.clients.get(client_id)
         if client and client.client_secret:
             provided_secret = body.get("client_secret", "")
-            if provided_secret and not secrets.compare_digest(provided_secret, client.client_secret):
+            if not provided_secret or not secrets.compare_digest(provided_secret, client.client_secret):
                 return JSONResponse({"error": "invalid_client"}, status_code=401)
 
         # Issue access token

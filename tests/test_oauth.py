@@ -127,7 +127,9 @@ class TestOAuthFlow:
             },
         )
         assert reg.status_code == 201
-        client_id = reg.json()["client_id"]
+        reg_data = reg.json()
+        client_id = reg_data["client_id"]
+        client_secret = reg_data.get("client_secret", "")
 
         # 2) Authorize with PKCE
         verifier, challenge = _make_pkce()
@@ -153,17 +155,17 @@ class TestOAuthFlow:
         parsed = urlparse(location)
         code = parse_qs(parsed.query)["code"][0]
 
-        # 3) Token exchange
-        token_resp = client.post(
-            "/oauth/token",
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "code_verifier": verifier,
-                "client_id": client_id,
-                "redirect_uri": "http://localhost/callback",
-            },
-        )
+        # 3) Token exchange (include client_secret if the client has one)
+        token_data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "code_verifier": verifier,
+            "client_id": client_id,
+            "redirect_uri": "http://localhost/callback",
+        }
+        if client_secret:
+            token_data["client_secret"] = client_secret
+        token_resp = client.post("/oauth/token", data=token_data)
         assert token_resp.status_code == 200
         token_data = token_resp.json()
         assert "access_token" in token_data
@@ -244,7 +246,9 @@ class TestOAuthFlow:
         client = TestClient(app, follow_redirects=False)
 
         reg = client.post("/oauth/register", json={"redirect_uris": ["http://localhost/cb"]})
-        client_id = reg.json()["client_id"]
+        reg_data = reg.json()
+        client_id = reg_data["client_id"]
+        client_secret = reg_data.get("client_secret", "")
         verifier, challenge = _make_pkce()
         auth_resp = client.get(
             "/oauth/authorize",
@@ -260,30 +264,22 @@ class TestOAuthFlow:
 
         code = parse_qs(urlparse(auth_resp.headers["location"]).query)["code"][0]
 
+        token_data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "code_verifier": verifier,
+            "client_id": client_id,
+            "redirect_uri": "http://localhost/cb",
+        }
+        if client_secret:
+            token_data["client_secret"] = client_secret
+
         # First exchange succeeds
-        resp1 = client.post(
-            "/oauth/token",
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "code_verifier": verifier,
-                "client_id": client_id,
-                "redirect_uri": "http://localhost/cb",
-            },
-        )
+        resp1 = client.post("/oauth/token", data=token_data)
         assert resp1.status_code == 200
 
         # Second exchange fails (code consumed)
-        resp2 = client.post(
-            "/oauth/token",
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "code_verifier": verifier,
-                "client_id": client_id,
-                "redirect_uri": "http://localhost/cb",
-            },
-        )
+        resp2 = client.post("/oauth/token", data=token_data)
         assert resp2.status_code == 400
 
 
