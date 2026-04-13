@@ -789,21 +789,23 @@ def Notification(title: str = "winremote-mcp", message: str = "") -> str:
         openWorldHint=False,
     )
 )
-def PlaySound(path: str = "", url: str = "") -> str:
+def PlaySound(path: str | None = None, url: str | None = None) -> str:
     """Play an audio file on the Windows host.
 
+    Supports .wav files natively. For .mp3/.ogg files, uses Windows Media Player.
+
     Args:
-        path: Local file path to audio file (.wav, .mp3, .ogg).
-        url: URL to audio file (will be downloaded first).
+        path: Local file path to an audio file (e.g. C:\\Music\\alert.wav).
+        url: URL to an audio file (will be downloaded to a temp file first).
     """
     import tempfile
     import urllib.request
 
     try:
         if not path and not url:
-            return "Error: provide either path or url"
+            return "Error: provide either 'path' (local file) or 'url' (remote file)"
+
         if url and not path:
-            # Download to temp file
             suffix = ".wav"
             if ".mp3" in url:
                 suffix = ".mp3"
@@ -812,30 +814,44 @@ def PlaySound(path: str = "", url: str = "") -> str:
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             urllib.request.urlretrieve(url, tmp.name)
             path = tmp.name
-        # Play using PowerShell
-        ps_command = f"""
-        Add-Type -AssemblyName System.Windows.Forms
-        $player = New-Object System.Media.SoundPlayer
-        $player.SoundLocation = "{path}"
-        $player.Play()
-        """
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", ps_command],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        if result.returncode != 0:
-            # Fallback: try Media.SoundPlayer for WAV only, or use wmplayer
-            ps_fallback = f'(New-Object System.Media.SoundPlayer "{path}").PlaySync()'
-            result2 = subprocess.run(
-                ["powershell", "-NoProfile", "-Command", ps_fallback],
+
+        ext = os.path.splitext(path)[1].lower()
+
+        if ext in (".mp3", ".ogg", ".wma", ".m4a"):
+            # Use Windows Media Player COM object for non-WAV formats
+            safe_path = path.replace('"', '`"')
+            ps_command = (
+                "Add-Type -AssemblyName presentationCore; "
+                "$p = New-Object System.Windows.Media.MediaPlayer; "
+                f'$p.Open([uri]"{safe_path}"); '
+                "$p.Play(); "
+                "Start-Sleep -Milliseconds 500; "
+                "while ($p.NaturalDuration.HasTimeSpan -and "
+                "$p.Position -lt $p.NaturalDuration.TimeSpan) "
+                "{ Start-Sleep -Milliseconds 200 }; "
+                "$p.Close()"
+            )
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_command],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode != 0:
+                return f"PlaySound error: {result.stderr}"
+        else:
+            # WAV: use SoundPlayer with PlaySync (blocks until done)
+            safe_path = path.replace('"', '`"')
+            ps_command = f'(New-Object System.Media.SoundPlayer "{safe_path}").PlaySync()'
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_command],
                 capture_output=True,
                 text=True,
                 timeout=30,
             )
-            if result2.returncode != 0:
-                return f"PlaySound error: {result.stderr or result2.stderr}"
+            if result.returncode != 0:
+                return f"PlaySound error: {result.stderr}"
+
         return f"Played: {path}"
     except subprocess.TimeoutExpired:
         return "PlaySound timed out (audio may still be playing)"
