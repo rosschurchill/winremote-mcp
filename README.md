@@ -196,6 +196,18 @@ exclude = ["ScreenRecord"]   # disable specific tools
 
 > **Note:** winremote-mcp is a standard MCP server and works with any MCP-compatible client — Claude Desktop, Cursor, OpenClaw, and others.
 
+## What's New in v0.4.17
+
+### 🔧 PlaySound Fix
+
+Fixed PlaySound tool not working through the MCP interface:
+
+- **Parameters now accept `null`** — MCP clients that pass `null` for omitted params no longer get a `ValidationError`.
+- **Audio actually plays** — switched from async `Play()` to `PlaySync()` for WAV; the old implementation caused PowerShell to exit before audio could start.
+- **Removed `System.Windows.Forms` dependency** — no longer loads an unnecessary assembly that could fail in non-interactive/service sessions.
+- **Real .mp3/.ogg support** — non-WAV formats now route through WPF `MediaPlayer` instead of `SoundPlayer` (which only handles `.wav`).
+- **Path sanitisation** — prevents PowerShell injection via crafted file paths.
+
 ## What's New in v0.4.16
 
 ### 🔊 PlaySound Tool
@@ -529,7 +541,7 @@ See [SECURITY.md](SECURITY.md) for the full security guide.
 | AnnotatedSnapshot | Screenshot with numbered labels on interactive elements |
 | OCR | Extract text from screen via OCR (pytesseract or Windows built-in) |
 | ScreenRecord | Record screen activity as animated GIF |
-| PlaySound | Play audio file on Windows host (.wav/.mp3/.ogg or URL) |
+| PlaySound | Play audio file on Windows host (.wav/.mp3/.ogg/.wma/.m4a, local path or URL) |
 | **Input** | |
 | Click | Mouse click (left/right/middle, single/double/hover) |
 | Type | Type text at coordinates |
