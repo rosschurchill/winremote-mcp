@@ -22,7 +22,12 @@ class TestPlaySound:
 
     @patch("subprocess.run")
     def test_play_sound_no_args(self, mock_run):
-        result = _call_tool("PlaySound", path="", url="")
+        result = _call_tool("PlaySound")
+        assert "error" in result.lower() or "provide" in result.lower()
+
+    @patch("subprocess.run")
+    def test_play_sound_none_args(self, mock_run):
+        result = _call_tool("PlaySound", path=None, url=None)
         assert "error" in result.lower() or "provide" in result.lower()
 
     @patch("subprocess.run")
@@ -44,6 +49,16 @@ class TestPlaySound:
         mock_retrieve.return_value = (None, None)
         result = _call_tool("PlaySound", url="https://example.com/test.wav")
         assert "Played" in result or "task:" in result or "error" in result.lower()
+
+    @patch("subprocess.run")
+    def test_play_sound_mp3(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        result = _call_tool("PlaySound", path="C:\\test.mp3")
+        assert "Played" in result or "task:" in result
+        # Verify MediaPlayer is used for mp3
+        call_args = mock_run.call_args
+        cmd = call_args[0][0][-1] if call_args else ""
+        assert "MediaPlayer" in str(cmd) or "task:" in result
 
     def test_play_sound_in_tier1(self):
         from winremote.tiers import TOOL_TIERS
