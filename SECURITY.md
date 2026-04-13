@@ -31,20 +31,20 @@ winremote-mcp --host 0.0.0.0 --auth-key "$(openssl rand -hex 32)"
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  winremote-mcp server                                       │
-│  ├─ Auth middleware (--auth-key)                           │
-│  ├─ IP allowlist middleware (--ip-allowlist)               │
-│  ├─ Tool controls (--enable-tier3/--disable-tier2/--tools) │
-│  └─ Rate limiting [planned]                                │
+│  ├─ Auth middleware (--auth-key)                            │
+│  ├─ IP allowlist middleware (--ip-allowlist)                │
+│  ├─ Tool controls (--enable-tier3/--disable-tier2/--tools)  │
+│  └─ Rate limiting [planned]                                 │
 └──────────────────────────┬──────────────────────────────────┘
                            │ pyautogui / pywin32 / subprocess
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Windows Desktop Session                                    │
-│  ├─ GUI (mouse, keyboard, screenshots)                     │
-│  ├─ File System                                            │
-│  ├─ Registry                                               │
-│  ├─ Services & Scheduled Tasks                             │
-│  └─ PowerShell                                             │
+│  ├─ GUI (mouse, keyboard, screenshots)                      │
+│  ├─ File System                                             │
+│  ├─ Registry                                                │
+│  ├─ Services & Scheduled Tasks                              │
+│  └─ PowerShell                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
