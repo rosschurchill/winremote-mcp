@@ -317,6 +317,7 @@ Startup banner shows **`[oauth ON]`** when enabled. Existing `--auth-key` Bearer
 - **System Administration** — Windows Registry access, service management, scheduled tasks, process control
 - **Network Tools** — Ping hosts, check TCP ports, monitor network connections
 - **Advanced Features** — OCR text extraction, screen recording (GIF), annotated screenshots with UI element labels
+- **AI Vision Support** — Works with Flutter, Electron, Qt and any UI via AI vision. See [Vision Guide](docs/vision-guide.md)
 - **Security & Auth** — Optional API key authentication, localhost-only binding by default
 
 ## Installation
@@ -623,6 +624,26 @@ graph LR
 2. **Task Manager**: Concurrency control and task cancellation
 3. **Transport Layer**: MCP protocol over stdio or HTTP
 4. **Security Layer**: Optional Bearer token authentication
+
+## Working with Non-Standard UI Frameworks
+
+`AnnotatedSnapshot` uses Win32 API to detect UI elements, which doesn't work with **Flutter, Electron, Qt**, or custom-drawn UIs. Three solutions:
+
+| Approach | Setup | GPU | Best For |
+|----------|-------|-----|----------|
+| **Snapshot + Claude Vision** | None | No | Most users — Claude sees the screenshot and clicks |
+| **[UI-TARS Desktop](https://github.com/bytedance/UI-TARS-desktop)** | Medium | 16 GB | Highest accuracy (94.2%), best Chinese UI support |
+| **[OmniMCP](https://github.com/OpenAdaptAI/OmniMCP)** | Medium | 16 GB | Multi-LLM setups (LLM-agnostic) |
+
+**Quick example** — no extra tools needed:
+```
+You:    "Take a screenshot with Snapshot, find the Connect button, and click it."
+Claude:  1. Calls Snapshot() → sees the Flutter app screenshot
+         2. Vision identifies "Connect" button at (520, 340)
+         3. Calls Click(x=520, y=340)
+```
+
+For the complete guide with setup instructions, architecture diagrams, and comparison benchmarks, see **[docs/vision-guide.md](docs/vision-guide.md)**.
 
 ## Troubleshooting / FAQ
 
