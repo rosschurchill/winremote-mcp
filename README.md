@@ -196,6 +196,23 @@ exclude = ["ScreenRecord"]   # disable specific tools
 
 > **Note:** winremote-mcp is a standard MCP server and works with any MCP-compatible client — Claude Desktop, Cursor, OpenClaw, and others.
 
+## What's New in v0.4.18
+
+### 🔒 Security Hardening & Bug Fixes
+
+Comprehensive security audit and fix pass across the entire codebase:
+
+- **Fixed command injection** in Shell (`cwd`), Services (filter), Desktop (`launch_app`, `show_notification`), and `install`/`uninstall` CLI commands — all user inputs now properly escaped with PowerShell single-quote quoting or subprocess list form.
+- **Fixed OAuth token bypass** — `client_secret` is now mandatory when the client has one configured (previously could be omitted to skip validation).
+- **Fixed coordinate (0,0) unreachable** — `Type`, `Scroll`, and `Move` tools now correctly handle coordinates where x or y is zero.
+- **Fixed AnnotatedSnapshot performance** — no longer takes redundant extra screenshots for scale calculation.
+- **Fixed ScreenRecord** — duration clamped to 0.1–10s, fps to 1–10; fixed GIF size calculation.
+- **Added FileUpload size limit** — rejects base64 payloads over 100 MB.
+- **Removed dead code** — duplicate `_ensure_session_connected()` function removed.
+- **Hardened XML escaping** in toast notifications to prevent injection via title/message.
+- **Improved temp file cleanup** — PlaySound now cleans up downloaded files in `finally` block.
+- **TaskManager** — cancel operations now hold lock during status transition.
+
 ## What's New in v0.4.17
 
 ### 🔧 PlaySound Fix
