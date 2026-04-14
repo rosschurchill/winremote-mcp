@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.18] - 2026-04-13
+
+### Security
+
+- Fixed command injection vulnerabilities in shell execution paths
+- Hardened input handling across desktop and shell tools
+- Fixed logic bugs in tool parameter validation
+
+### Docs
+
+- Added AI vision guide for non-standard UI frameworks (Flutter/Electron/Qt)
+- Fixed formatting issues in SECURITY.md
+
+## [0.4.17] - 2026-04-11
+
+### Fixed
+
+- Fixed PlaySound tool not working through MCP interface
+
+## [0.4.16] - 2026-04-11
+
+### Added
+
+- Added PlaySound tool (Tier 1) for audio playback on Windows host
+- PlaySound supports both local file paths and URLs
+- Added unit tests for PlaySound tool
+
+### Fixed
+
+- Fixed syntax errors in PlaySound tool definition
+- Fixed ruff lint issues (E701, F541)
+
 ## [0.4.15] - 2026-04-03
 
 ### Fixed
