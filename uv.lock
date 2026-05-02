@@ -2220,7 +2220,7 @@ wheels = [
 
 [[package]]
 name = "winremote-mcp"
-version = "0.4.8"
+version = "0.4.19"
 source = { editable = "." }
 dependencies = [
     { name = "click" },

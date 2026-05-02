@@ -23,6 +23,35 @@ winremote-mcp
 
 That's it! Your Windows MCP server is now running on `http://127.0.0.1:8090` and ready to accept commands from MCP clients like Claude Desktop.
 
+## 🤖 Agent Integrations
+
+winremote-mcp works with MCP-compatible AI agents and clients. Client-specific setup guides live in this repo:
+
+- [Hermes](skill/hermes/) — add winremote as a native streamable HTTP or stdio MCP server.
+- [OpenClaw](skill/openclaw/) — use winremote as OpenClaw's Windows control layer.
+- [Claude Desktop / Claude Code](skill/claude/) — configure local stdio or remote streamable HTTP.
+- [Cursor](skill/cursor/) — add winremote to `.cursor/mcp.json`.
+
+### Hermes Setup
+
+Run winremote-mcp on the Windows machine, then add it to Hermes as an MCP server:
+
+```powershell
+pip install winremote-mcp
+winremote-mcp --host 0.0.0.0 --port 8090 --auth-key "your-secret-key"
+```
+
+```yaml
+mcp_servers:
+  winremote:
+    type: streamable-http
+    url: http://<windows-ip>:8090/mcp
+    headers:
+      Authorization: Bearer your-secret-key
+```
+
+See the full [Hermes integration guide](skill/hermes/) for local stdio setup, verification prompts, and available capabilities.
+
 ## 🤖 OpenClaw Integration
 
 winremote-mcp is the official Windows control layer for [OpenClaw](https://github.com/openclaw/openclaw). Together they give your AI agent full remote control over any Windows machine — screenshots, PowerShell, file transfer, GUI automation, and more.
@@ -195,6 +224,13 @@ exclude = ["ScreenRecord"]   # disable specific tools
 ---
 
 > **Note:** winremote-mcp is a standard MCP server and works with any MCP-compatible client — Claude Desktop, Cursor, OpenClaw, and others.
+
+## What's New in v0.4.19
+
+### 🤖 Hermes Integration
+
+- Added a Hermes setup guide for connecting winremote-mcp as a native MCP server.
+- Added README links to client-specific integration guides in this repository.
 
 ## What's New in v0.4.18
 
