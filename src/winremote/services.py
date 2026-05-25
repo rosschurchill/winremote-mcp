@@ -5,12 +5,17 @@ from __future__ import annotations
 import subprocess
 
 
+_PS_UTF8_PREFIX = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; "
+
+
 def _ps(command: str, timeout: int = 30) -> str:
     """Run a PowerShell command and return output."""
     result = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", command],
+        ["powershell", "-NoProfile", "-Command", _PS_UTF8_PREFIX + command],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
     )
     output = result.stdout
@@ -83,9 +88,19 @@ def task_list(filter_str: str = "") -> str:
         return f"TaskList error: {e}"
 
 
+VALID_SCHEDULES: frozenset[str] = frozenset(
+    {"MINUTE", "HOURLY", "DAILY", "WEEKLY", "MONTHLY", "ONCE", "ONSTART", "ONLOGON", "ONIDLE", "ONEVENT"}
+)
+
+
 def task_create(name: str, command: str, schedule: str) -> str:
     """Create a scheduled task using schtasks."""
     try:
+        if schedule.upper() not in VALID_SCHEDULES:
+            return (
+                f"TaskCreate error: invalid schedule '{schedule}'. "
+                f"Valid values: {', '.join(sorted(VALID_SCHEDULES))}"
+            )
         safe_name = _ps_escape(name)
         safe_command = _ps_escape(command)
         safe_schedule = _ps_escape(schedule)
@@ -127,6 +142,9 @@ def event_log(log_name: str = "System", count: int = 20, level: str = "") -> str
             if lvl_num:
                 cmd = f"Get-WinEvent -FilterHashtable @{{LogName='{safe_log}';Level={lvl_num}}} -MaxEvents {count}"
         cmd += " | Format-Table TimeCreated, Id, LevelDisplayName, Message -AutoSize -Wrap"
-        return _ps(cmd, timeout=30)
+        result = _ps(cmd, timeout=30)
+        if "No events were found" in result:
+            return "No events matching the filter."
+        return result
     except Exception as e:
         return f"EventLog error: {e}"

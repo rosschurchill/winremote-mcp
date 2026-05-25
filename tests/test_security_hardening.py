@@ -174,7 +174,6 @@ class TestRemoteBindHardening:
 
         assert result.exit_code != 0
         assert "--auth-key" in result.output
-        assert "--allow-insecure-remote" in result.output
 
     def test_non_loopback_http_allows_configured_oauth(self, monkeypatch):
         from winremote import __main__ as main_module
@@ -198,12 +197,3 @@ class TestRemoteBindHardening:
         assert result.exit_code == 0
 
 
-class TestConfigHardening:
-    def test_allow_insecure_remote_requires_toml_boolean(self, tmp_path):
-        from winremote.config import load_config
-
-        config_path = tmp_path / "winremote.toml"
-        config_path.write_text('[server]\nallow_insecure_remote = "false"\n', encoding="utf-8")
-
-        with pytest.raises(ValueError, match="server.allow_insecure_remote"):
-            load_config(config_path)

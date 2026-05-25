@@ -31,7 +31,8 @@ class TestPortCheck:
     def test_port_open(self, mock_socket_cls):
         mock_sock = MagicMock()
         mock_sock.connect_ex.return_value = 0
-        mock_socket_cls.return_value = mock_sock
+        mock_socket_cls.return_value.__enter__ = lambda self: mock_sock
+        mock_socket_cls.return_value.__exit__ = MagicMock(return_value=False)
         from winremote.network import port_check
 
         result = port_check("localhost", 80)
@@ -41,7 +42,8 @@ class TestPortCheck:
     def test_port_closed(self, mock_socket_cls):
         mock_sock = MagicMock()
         mock_sock.connect_ex.return_value = 111
-        mock_socket_cls.return_value = mock_sock
+        mock_socket_cls.return_value.__enter__ = lambda self: mock_sock
+        mock_socket_cls.return_value.__exit__ = MagicMock(return_value=False)
         from winremote.network import port_check
 
         result = port_check("localhost", 9999)
@@ -51,7 +53,8 @@ class TestPortCheck:
     def test_port_timeout(self, mock_socket_cls):
         mock_sock = MagicMock()
         mock_sock.connect_ex.side_effect = socket.timeout("timed out")
-        mock_socket_cls.return_value = mock_sock
+        mock_socket_cls.return_value.__enter__ = lambda self: mock_sock
+        mock_socket_cls.return_value.__exit__ = MagicMock(return_value=False)
         from winremote.network import port_check
 
         result = port_check("slow.host", 80)

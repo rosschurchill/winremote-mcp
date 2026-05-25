@@ -2,59 +2,12 @@
 
 from __future__ import annotations
 
-TOOL_TIERS = {
-    "tier1": {
-        "Snapshot",
-        "AnnotatedSnapshot",
-        "GetClipboard",
-        "GetSystemInfo",
-        "ListProcesses",
-        "FileList",
-        "FileSearch",
-        "RegRead",
-        "ServiceList",
-        "TaskList",
-        "EventLog",
-        "Ping",
-        "PortCheck",
-        "NetConnections",
-        "OCR",
-        "ScreenRecord",
-        "Notification",
-        "Wait",
-        "GetTaskStatus",
-        "GetRunningTasks",
-    },
-    "tier2": {
-        "Click",
-        "Type",
-        "Move",
-        "Scroll",
-        "Shortcut",
-        "FocusWindow",
-        "MinimizeAll",
-        "Scrape",
-        "CancelTask",
-        "ReconnectSession",
-    },
-    "tier3": {
-        "Shell",
-        "App",
-        "PlaySound",
-        "FileRead",
-        "FileWrite",
-        "FileDownload",
-        "FileUpload",
-        "KillProcess",
-        "RegWrite",
-        "ServiceStart",
-        "ServiceStop",
-        "TaskCreate",
-        "TaskDelete",
-        "SetClipboard",
-        "LockScreen",
-    },
-}
+from winremote.fastmcp_compat import get_registered_tools, remove_tool
+from winremote.tool_registry import TOOL_REGISTRY
+
+TOOL_TIERS: dict[str, set[str]] = {"tier1": set(), "tier2": set(), "tier3": set()}
+for _name, _meta in TOOL_REGISTRY.items():
+    TOOL_TIERS[f"tier{_meta.tier}"].add(_name)
 
 ALL_TOOLS = TOOL_TIERS["tier1"] | TOOL_TIERS["tier2"] | TOOL_TIERS["tier3"]
 _NAME_LOOKUP = {name.lower(): name for name in ALL_TOOLS}
@@ -125,56 +78,13 @@ def get_tier_names(enabled_tools: set[str]) -> list[str]:
 
 
 def _get_registered_tools(mcp) -> dict[str, object]:
-    # fastmcp 2.x
-    tool_mgr = getattr(mcp, "_tool_manager", None)
-    tools = getattr(tool_mgr, "_tools", None)
-    if isinstance(tools, dict):
-        return tools
-
-    # fastmcp 3.x
-    provider = getattr(mcp, "_local_provider", None)
-    components = getattr(provider, "_components", None)
-    if isinstance(components, dict):
-        out: dict[str, object] = {}
-        for comp_key, comp in components.items():
-            if not isinstance(comp_key, str) or not comp_key.startswith("tool:"):
-                continue
-            name = getattr(comp, "name", None)
-            if not isinstance(name, str) or not name:
-                name = comp_key.split(":", 1)[1].split("@", 1)[0]
-            out[name] = comp
-        return out
-
-    raise RuntimeError("Unsupported fastmcp internals: cannot locate registered tools")
-
-
-def _remove_tool(mcp, name: str) -> None:
-    # fastmcp 2.x
-    tool_mgr = getattr(mcp, "_tool_manager", None)
-    tools = getattr(tool_mgr, "_tools", None)
-    if isinstance(tools, dict):
-        tools.pop(name, None)
-        return
-
-    # fastmcp 3.x
-    provider = getattr(mcp, "_local_provider", None)
-    components = getattr(provider, "_components", None)
-    if isinstance(components, dict):
-        keys_to_remove = [
-            k
-            for k, v in components.items()
-            if isinstance(k, str)
-            and k.startswith("tool:")
-            and ((getattr(v, "name", None) == name) or k.split(":", 1)[1].split("@", 1)[0] == name)
-        ]
-        for k in keys_to_remove:
-            components.pop(k, None)
+    return get_registered_tools(mcp)
 
 
 def filter_tools(mcp, enabled_tools: set[str]) -> dict[str, int]:
-    all_tools = list(_get_registered_tools(mcp).keys())
+    all_tools = list(get_registered_tools(mcp).keys())
     total_count = len(all_tools)
     for name in all_tools:
         if name not in enabled_tools:
-            _remove_tool(mcp, name)
+            remove_tool(mcp, name)
     return {"enabled": len(enabled_tools), "disabled": total_count - len(enabled_tools), "total": total_count}

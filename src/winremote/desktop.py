@@ -6,8 +6,12 @@ import base64
 import ctypes
 import io
 import locale
+import logging
+import subprocess
+import time
 from dataclasses import dataclass
-from typing import Optional
+
+logger = logging.getLogger("winremote.desktop")
 
 try:
     import pyautogui
@@ -29,6 +33,7 @@ try:
 except ImportError:
     HAS_WIN32 = False
 
+from PIL import Image as PILImage
 from PIL import ImageGrab
 
 # Enable DPI awareness so screenshots capture native resolution (e.g. 4K)
@@ -58,12 +63,18 @@ def _tobool(v: bool | str) -> bool:
     return str(v).lower() in ("true", "1", "yes")
 
 
+_SYSTEM_LANGUAGE: str | None = None
+
+
 def _get_system_language() -> str:
-    """Return current Windows display language."""
-    try:
-        return locale.getdefaultlocale()[0] or "en_US"
-    except Exception:
-        return "en_US"
+    """Return current Windows display language (cached after first call)."""
+    global _SYSTEM_LANGUAGE
+    if _SYSTEM_LANGUAGE is None:
+        try:
+            _SYSTEM_LANGUAGE = locale.getdefaultlocale()[0] or "en_US"
+        except Exception:
+            _SYSTEM_LANGUAGE = "en_US"
+    return _SYSTEM_LANGUAGE
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +199,7 @@ def take_screenshot(quality: int = 75, max_width: int = 0, monitor: int = 0) -> 
     if max_width > 0 and img.width > max_width:
         ratio = max_width / img.width
         new_height = int(img.height * ratio)
-        img = img.resize((max_width, new_height), resample=3)  # LANCZOS
+        img = img.resize((max_width, new_height), resample=PILImage.Resampling.LANCZOS)
     # Convert to JPEG
     if img.mode in ("RGBA", "LA"):
         img = img.convert("RGB")
@@ -202,7 +213,7 @@ def take_screenshot(quality: int = 75, max_width: int = 0, monitor: int = 0) -> 
 # ---------------------------------------------------------------------------
 
 
-def focus_window(title: Optional[str] = None, handle: Optional[int] = None) -> str:
+def focus_window(title: str | None = None, handle: int | None = None) -> str:
     """Bring a window to the foreground. Fuzzy-match title if provided."""
     if not HAS_WIN32:
         return "Error: pywin32 not installed — run `pip install pywin32`"
@@ -230,7 +241,12 @@ def focus_window(title: Optional[str] = None, handle: Optional[int] = None) -> s
         if win32gui.IsIconic(hwnd):
             win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
         win32gui.SetForegroundWindow(hwnd)
-        return f"Focused window handle={hwnd} title='{win32gui.GetWindowText(hwnd)}'"
+        time.sleep(0.05)
+        actual_fg = win32gui.GetForegroundWindow()
+        title_str = win32gui.GetWindowText(hwnd)
+        if actual_fg != hwnd:
+            return f"Warning: focus request sent but window {hwnd} may not have focus (foreground is {actual_fg})"
+        return f"Focused window handle={hwnd} title='{title_str}'"
     except Exception as e:
         return f"Failed to focus: {e}"
 
@@ -278,11 +294,23 @@ def resize_window(handle: int, width: int, height: int) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _open_clipboard(retries: int = 10, delay: float = 0.01) -> None:
+    """Open the Windows clipboard with retry backoff (another process may hold the lock)."""
+    for attempt in range(retries):
+        try:
+            win32clipboard.OpenClipboard()
+            return
+        except Exception:
+            if attempt < retries - 1:
+                time.sleep(delay)
+    win32clipboard.OpenClipboard()  # final attempt — let it raise if still locked
+
+
 def get_clipboard() -> str:
     if not HAS_WIN32:
         return "Error: pywin32 not installed — run `pip install pywin32`"
     try:
-        win32clipboard.OpenClipboard()
+        _open_clipboard()
         data = win32clipboard.GetClipboardData(win32con.CF_UNICODETEXT)
         win32clipboard.CloseClipboard()
         return data
@@ -298,7 +326,7 @@ def set_clipboard(text: str) -> str:
     if not HAS_WIN32:
         return "Error: pywin32 not installed — run `pip install pywin32`"
     try:
-        win32clipboard.OpenClipboard()
+        _open_clipboard()
         win32clipboard.EmptyClipboard()
         win32clipboard.SetClipboardText(text, win32con.CF_UNICODETEXT)
         win32clipboard.CloseClipboard()
@@ -358,3 +386,112 @@ $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
         return "Notification shown"
     except Exception as e:
         return f"Failed: {e}"
+
+
+def grab_screenshot_with_reconnect():
+    """Grab a PIL screenshot, reconnecting the desktop session once on failure."""
+    try:
+        return ImageGrab.grab()
+    except Exception as first_err:
+        reconnect_err = ensure_session_connected()
+        if reconnect_err is not None:
+            raise RuntimeError(str(first_err)) from first_err
+        return ImageGrab.grab()
+
+
+def ensure_session_connected(force: bool = False) -> str | None:
+    """Reconnect a disconnected desktop session to console.
+
+    Returns None on success or if already connected, error string on failure.
+    Tries win32ts.WTSEnumerateSessions first (locale-independent); falls back
+    to the 'query session' text parser when pywin32 is unavailable.
+
+    The 'query session' output has fixed-width columns:
+      SESSIONNAME  USERNAME  ID  STATE  TYPE  DEVICE
+    State values: Active, Disc (disconnected), Listen, Idle
+    Chinese Windows: 已断开 / 运行中 for Disc / Active
+    """
+    try:
+        user_session_id = None
+        is_disconnected = False
+
+        # Preferred: win32ts API — WTSDisconnected == state 4 regardless of locale
+        try:
+            import win32ts
+
+            WTS_DISCONNECTED = 4
+            sessions = win32ts.WTSEnumerateSessions(win32ts.WTS_CURRENT_SERVER_HANDLE)
+            for sess in sessions:
+                sid = sess["SessionId"]
+                state = sess["State"]
+                name = sess.get("WinStationName", "").lower()
+                if name in ("services", "rdp-tcp", ""):
+                    continue
+                logger.debug("win32ts session id=%s name=%s state=%s", sid, name, state)
+                user_session_id = sid
+                is_disconnected = state == WTS_DISCONNECTED
+                break
+        except Exception:
+            # Fall back to text parser when win32ts is not available
+            result = subprocess.run(
+                ["query", "session"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+            )
+            if result.returncode != 0:
+                return f"Failed to query sessions: {result.stderr}"
+
+            lines = result.stdout.strip().split("\n")
+            for line in lines[1:]:
+                line = line.lstrip(">").strip()
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) < 4:
+                    continue
+                name = parts[0].lower()
+                if name in ("services", "rdp-tcp"):
+                    continue
+                for i, p in enumerate(parts[1:], 1):
+                    if p.isdigit():
+                        sid = int(p)
+                        if i + 1 < len(parts):
+                            state = parts[i + 1].lower()
+                            has_user = i > 1 and not parts[i - 1].isdigit()
+                            if has_user or name == "console":
+                                user_session_id = sid
+                                is_disconnected = state in ("disc", "断开", "已断开", "disconnected")
+                                logger.debug(
+                                    "query session parsed id=%s state=%s disconnected=%s",
+                                    sid,
+                                    state,
+                                    is_disconnected,
+                                )
+                        break
+
+        if user_session_id is None:
+            return "No user session found"
+
+        if not is_disconnected and not force:
+            return None  # Already connected
+
+        result = subprocess.run(
+            ["tscon", str(user_session_id), "/dest:console"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+        if result.returncode != 0:
+            err = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            return f"tscon failed: {err}"
+        time.sleep(1)
+        return None
+    except subprocess.TimeoutExpired:
+        return "Session reconnect timed out"
+    except Exception as e:
+        return f"Session reconnect error: {e}"

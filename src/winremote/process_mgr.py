@@ -2,30 +2,37 @@
 
 from __future__ import annotations
 
+import heapq
+import time
+
 import psutil
 from tabulate import tabulate
 from thefuzz import fuzz
 
 
 def list_processes(
-    filter_name: str = "",
+    filter_str: str = "",
     sort_by: str = "memory",
     limit: int = 30,
 ) -> str:
     """List running processes with CPU/memory usage.
 
     Args:
-        filter_name: Fuzzy filter by process name.
+        filter_str: Fuzzy filter by process name.
         sort_by: Sort key — 'cpu', 'memory', or 'name'.
         limit: Max rows to return.
     """
+    # Prime CPU counters so first sample isn't always 0.0
+    list(psutil.process_iter(["cpu_percent"]))
+    time.sleep(0.2)
+
     procs = []
     for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_info", "status"]):
         try:
             info = p.info
             name = info["name"] or ""
-            if filter_name:
-                if fuzz.partial_ratio(filter_name.lower(), name.lower()) < 60:
+            if filter_str:
+                if fuzz.partial_ratio(filter_str.lower(), name.lower()) < 60:
                     continue
             mem_mb = (info["memory_info"].rss / 1048576) if info["memory_info"] else 0
             procs.append(
@@ -42,9 +49,11 @@ def list_processes(
 
     key_map = {"cpu": "CPU%", "memory": "Mem(MB)", "name": "Name"}
     sort_key = key_map.get(sort_by, "Mem(MB)")
-    reverse = sort_key != "Name"
-    procs.sort(key=lambda x: x[sort_key], reverse=reverse)
-    procs = procs[:limit]
+    if sort_key == "Name":
+        procs.sort(key=lambda x: x["Name"])
+        procs = procs[:limit]
+    else:
+        procs = heapq.nlargest(limit, procs, key=lambda x: x[sort_key])
 
     if not procs:
         return "No processes found."

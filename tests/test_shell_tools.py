@@ -17,24 +17,37 @@ def _call_tool(tool_name, **kwargs):
 
 
 class TestShell:
-    @patch("subprocess.run")
-    def test_shell_success(self, mock_run):
-        mock_run.return_value = MagicMock(stdout="hello", stderr="", returncode=0)
+    @patch("subprocess.Popen")
+    def test_shell_success(self, mock_popen):
+        proc = MagicMock()
+        proc.communicate.return_value = ("hello", "")
+        proc.returncode = 0
+        mock_popen.return_value = proc
         result = _call_tool("Shell", command="echo hello")
         assert "hello" in result
 
-    @patch("subprocess.run")
-    def test_shell_stderr(self, mock_run):
-        mock_run.return_value = MagicMock(stdout="", stderr="error msg", returncode=1)
+    @patch("subprocess.Popen")
+    def test_shell_stderr(self, mock_popen):
+        proc = MagicMock()
+        proc.communicate.return_value = ("", "error msg")
+        proc.returncode = 1
+        mock_popen.return_value = proc
         result = _call_tool("Shell", command="bad")
         assert "STDERR" in result or "error" in result.lower()
 
-    @patch("subprocess.run")
-    def test_shell_timeout(self, mock_run):
+    @patch("subprocess.Popen")
+    def test_shell_timeout(self, mock_popen):
         import subprocess
+        import time
 
-        mock_run.side_effect = subprocess.TimeoutExpired("cmd", 30)
-        result = _call_tool("Shell", command="long", timeout=30)
+        proc = MagicMock()
+        # First communicate call raises TimeoutExpired, subsequent call (after kill) returns empty
+        proc.communicate.side_effect = [subprocess.TimeoutExpired("cmd", 0.5), ("", "")]
+        proc.returncode = -9
+        mock_popen.return_value = proc
+
+        with patch.object(time, "time", side_effect=[0, 999]):
+            result = _call_tool("Shell", command="long", timeout=1)
         assert "timed out" in result.lower()
 
 

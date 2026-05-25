@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import logging
 import threading
@@ -13,7 +12,18 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Callable
 
+from winremote.tool_registry import TOOL_REGISTRY
+
 logger = logging.getLogger("winremote.taskmanager")
+
+# Thread-local storage so subprocess-based tools can access the current task's cancel event
+# without needing it passed as a parameter.
+_thread_locals: threading.local = threading.local()
+
+
+def get_current_cancel_event() -> threading.Event | None:
+    """Return the cancel event for the tool currently executing on this thread, if any."""
+    return getattr(_thread_locals, "cancel_event", None)
 
 
 class TaskStatus(str, Enum):
@@ -39,53 +49,11 @@ class ToolCategory(str, Enum):
     NETWORK = "network"
 
 
-# Which tools belong to which category
+# Derive TOOL_CATEGORIES from the single-source TOOL_REGISTRY
 TOOL_CATEGORIES: dict[str, ToolCategory] = {
-    # Desktop — exclusive lock
-    "Snapshot": ToolCategory.DESKTOP,
-    "AnnotatedSnapshot": ToolCategory.DESKTOP,
-    "Click": ToolCategory.DESKTOP,
-    "Type": ToolCategory.DESKTOP,
-    "Scroll": ToolCategory.DESKTOP,
-    "Move": ToolCategory.DESKTOP,
-    "Shortcut": ToolCategory.DESKTOP,
-    "FocusWindow": ToolCategory.DESKTOP,
-    "MinimizeAll": ToolCategory.DESKTOP,
-    "App": ToolCategory.DESKTOP,
-    "OCR": ToolCategory.DESKTOP,
-    "ScreenRecord": ToolCategory.DESKTOP,
-    "LockScreen": ToolCategory.DESKTOP,
-    "Wait": ToolCategory.DESKTOP,
-    # File operations
-    "FileRead": ToolCategory.FILE,
-    "FileWrite": ToolCategory.FILE,
-    "FileList": ToolCategory.FILE,
-    "FileSearch": ToolCategory.FILE,
-    "FileDownload": ToolCategory.FILE,
-    "FileUpload": ToolCategory.FILE,
-    # System queries — concurrent
-    "GetSystemInfo": ToolCategory.QUERY,
-    "GetClipboard": ToolCategory.QUERY,
-    "SetClipboard": ToolCategory.QUERY,
-    "ListProcesses": ToolCategory.QUERY,
-    "KillProcess": ToolCategory.QUERY,
-    "Notification": ToolCategory.QUERY,
-    "RegRead": ToolCategory.QUERY,
-    "RegWrite": ToolCategory.QUERY,
-    "ServiceList": ToolCategory.QUERY,
-    "ServiceStart": ToolCategory.QUERY,
-    "ServiceStop": ToolCategory.QUERY,
-    "TaskList": ToolCategory.QUERY,
-    "TaskCreate": ToolCategory.QUERY,
-    "TaskDelete": ToolCategory.QUERY,
-    "EventLog": ToolCategory.QUERY,
-    # Shell
-    "Shell": ToolCategory.SHELL,
-    "Scrape": ToolCategory.SHELL,
-    # Network
-    "Ping": ToolCategory.NETWORK,
-    "PortCheck": ToolCategory.NETWORK,
-    "NetConnections": ToolCategory.NETWORK,
+    name: ToolCategory(meta.category)
+    for name, meta in TOOL_REGISTRY.items()
+    if meta.category in {cat.value for cat in ToolCategory}
 }
 
 # Max concurrent tasks per category
@@ -95,6 +63,15 @@ CATEGORY_LIMITS: dict[ToolCategory, int] = {
     ToolCategory.QUERY: 10,
     ToolCategory.SHELL: 3,
     ToolCategory.NETWORK: 5,
+}
+
+# Max seconds to wait for a category semaphore before returning a timeout error
+CATEGORY_ACQUIRE_TIMEOUTS: dict[ToolCategory, int] = {
+    ToolCategory.DESKTOP: 30,
+    ToolCategory.FILE: 30,
+    ToolCategory.QUERY: 15,
+    ToolCategory.SHELL: 60,
+    ToolCategory.NETWORK: 15,
 }
 
 
@@ -112,6 +89,7 @@ class TaskInfo:
     result: Any = None
     error: str | None = None
     _cancel_event: threading.Event = field(default_factory=threading.Event)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
 
     @property
     def duration(self) -> float | None:
@@ -121,13 +99,14 @@ class TaskInfo:
         return round(end - self.started_at, 2)
 
     def cancel(self) -> bool:
-        """Request cancellation."""
-        if self.status in (TaskStatus.PENDING, TaskStatus.RUNNING):
-            self._cancel_event.set()
-            self.status = TaskStatus.CANCELLED
-            self.completed_at = time.time()
-            return True
-        return False
+        """Request cancellation. Thread-safe — sets cancel event and transitions to CANCELLED atomically."""
+        with self._lock:
+            if self.status in (TaskStatus.PENDING, TaskStatus.RUNNING):
+                self._cancel_event.set()
+                self.status = TaskStatus.CANCELLED
+                self.completed_at = time.time()
+                return True
+            return False
 
     @property
     def is_cancelled(self) -> bool:
@@ -149,22 +128,13 @@ class TaskManager:
 
     def __init__(self) -> None:
         self._tasks: dict[str, TaskInfo] = {}
-        # Semaphores per category for concurrency control
-        self._semaphores: dict[ToolCategory, asyncio.Semaphore] = {}
-        # Thread-based semaphores for sync tools
+        # Thread-based semaphores for concurrency control
         self._thread_semaphores: dict[ToolCategory, threading.Semaphore] = {
             cat: threading.Semaphore(limit) for cat, limit in CATEGORY_LIMITS.items()
         }
         self._lock = threading.Lock()
         # Keep max N completed tasks in history
         self._max_history = 100
-
-    def _get_semaphore(self, category: ToolCategory) -> asyncio.Semaphore:
-        """Get or create async semaphore for a category."""
-        if category not in self._semaphores:
-            limit = CATEGORY_LIMITS.get(category, 5)
-            self._semaphores[category] = asyncio.Semaphore(limit)
-        return self._semaphores[category]
 
     def create_task(self, tool_name: str) -> TaskInfo:
         """Register a new task."""
@@ -221,32 +191,46 @@ class TaskManager:
         """Wrap a synchronous tool function with error handling + concurrency control."""
         category = TOOL_CATEGORIES.get(tool_name, ToolCategory.QUERY)
         sem = self._thread_semaphores.get(category)
+        acquire_timeout = CATEGORY_ACQUIRE_TIMEOUTS.get(category, 30)
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             task = self.create_task(tool_name)
 
             # Try to acquire semaphore
-            if sem and not sem.acquire(timeout=30):
-                task.status = TaskStatus.FAILED
-                task.error = f"Timeout waiting for {category.value} lock (another {category.value} task is running)"
-                task.completed_at = time.time()
+            if sem and not sem.acquire(timeout=acquire_timeout):
+                with task._lock:
+                    if task.status != TaskStatus.CANCELLED:
+                        task.status = TaskStatus.FAILED
+                        task.error = f"Timeout waiting for {category.value} lock (another {category.value} task is running)"
+                        task.completed_at = time.time()
                 return f"[task:{task.task_id}] Error: {task.error}"
 
             try:
                 if task.is_cancelled:
                     return f"[task:{task.task_id}] Cancelled before execution"
 
-                task.status = TaskStatus.RUNNING
-                task.started_at = time.time()
+                with task._lock:
+                    if task.status != TaskStatus.CANCELLED:
+                        task.status = TaskStatus.RUNNING
+                        task.started_at = time.time()
 
-                result = func(*args, **kwargs)
+                if task.is_cancelled:
+                    return f"[task:{task.task_id}] Cancelled before execution"
+
+                _thread_locals.cancel_event = task._cancel_event
+                try:
+                    result = func(*args, **kwargs)
+                finally:
+                    _thread_locals.cancel_event = None
 
                 if task.is_cancelled:
                     return f"[task:{task.task_id}] Cancelled during execution"
 
-                task.status = TaskStatus.COMPLETED
-                task.completed_at = time.time()
+                with task._lock:
+                    if task.status != TaskStatus.CANCELLED:
+                        task.status = TaskStatus.COMPLETED
+                        task.completed_at = time.time()
 
                 # Prepend task_id to text results
                 if isinstance(result, str):
@@ -267,9 +251,11 @@ class TaskManager:
                 return result
 
             except Exception as e:
-                task.status = TaskStatus.FAILED
-                task.error = str(e)
-                task.completed_at = time.time()
+                with task._lock:
+                    if task.status != TaskStatus.CANCELLED:
+                        task.status = TaskStatus.FAILED
+                        task.error = str(e)
+                        task.completed_at = time.time()
                 logger.error("Tool %s failed: %s\n%s", tool_name, e, traceback.format_exc())
                 return f"[task:{task.task_id}] Error in {tool_name}: {e}"
 

@@ -15,10 +15,10 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10
 class ServerConfig:
     host: str = "127.0.0.1"
     port: int = 8090
-    allow_insecure_remote: bool = False
     auth_key: str | None = None
     ssl_certfile: str | None = None
     ssl_keyfile: str | None = None
+    file_root: str | None = None
 
 
 @dataclass
@@ -93,14 +93,14 @@ def load_config(path: Path | None) -> WinRemoteConfig:
         cfg.server.host = str(server["host"])
     if "port" in server:
         cfg.server.port = int(server["port"])
-    if "allow_insecure_remote" in server:
-        cfg.server.allow_insecure_remote = _strict_bool(server["allow_insecure_remote"], "server.allow_insecure_remote")
     if "auth_key" in server:
         cfg.server.auth_key = str(server["auth_key"])
     if "ssl_certfile" in server:
         cfg.server.ssl_certfile = str(server["ssl_certfile"]) or None
     if "ssl_keyfile" in server:
         cfg.server.ssl_keyfile = str(server["ssl_keyfile"]) or None
+    if "file_root" in server:
+        cfg.server.file_root = str(server["file_root"]) or None
 
     if "ip_allowlist" in security:
         cfg.security.ip_allowlist = _list_of_strings(security["ip_allowlist"], "security.ip_allowlist")

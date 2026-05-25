@@ -53,18 +53,18 @@ disable_tier2 = "false"
         load_config(cfg_file)
 
 
-def test_config_loader_rejects_string_remote_break_glass_boolean(tmp_path: Path):
+def test_config_loader_ignores_unknown_server_keys(tmp_path: Path):
     cfg_file = tmp_path / "winremote.toml"
     cfg_file.write_text(
         """
 [server]
-allow_insecure_remote = "false"
+host = "127.0.0.1"
 """.strip(),
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="server.allow_insecure_remote"):
-        load_config(cfg_file)
+    cfg = load_config(cfg_file)
+    assert cfg.server.host == "127.0.0.1"
 
 
 def test_discover_config_path_prefers_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

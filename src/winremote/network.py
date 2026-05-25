@@ -25,10 +25,9 @@ def ping(host: str, count: int = 4) -> str:
 def port_check(host: str, port: int, timeout: float = 5.0) -> str:
     """Check if a TCP port is open."""
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((host, port))
-        sock.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(timeout)
+            result = sock.connect_ex((host, port))
         if result == 0:
             return f"Port {port} on {host} is OPEN"
         else:

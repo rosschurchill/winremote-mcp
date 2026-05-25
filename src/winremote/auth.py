@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hmac
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -40,8 +42,8 @@ class AuthKeyMiddleware(BaseHTTPMiddleware):
 
         auth_header = request.headers.get("Authorization", "")
 
-        # Check API key first
-        if auth_header == f"Bearer {self.auth_key}":
+        # Check API key first (constant-time comparison prevents timing attacks)
+        if hmac.compare_digest(auth_header, f"Bearer {self.auth_key}"):
             return await call_next(request)
 
         # Fallback to OAuth token validation

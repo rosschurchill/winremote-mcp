@@ -8,30 +8,42 @@ if sys.platform == "win32":
     import winreg
 
     HAS_WINREG = True
+    _ROOT_KEYS = {
+        "HKCR": winreg.HKEY_CLASSES_ROOT,
+        "HKEY_CLASSES_ROOT": winreg.HKEY_CLASSES_ROOT,
+        "HKCU": winreg.HKEY_CURRENT_USER,
+        "HKEY_CURRENT_USER": winreg.HKEY_CURRENT_USER,
+        "HKLM": winreg.HKEY_LOCAL_MACHINE,
+        "HKEY_LOCAL_MACHINE": winreg.HKEY_LOCAL_MACHINE,
+        "HKU": winreg.HKEY_USERS,
+        "HKEY_USERS": winreg.HKEY_USERS,
+        "HKCC": winreg.HKEY_CURRENT_CONFIG,
+        "HKEY_CURRENT_CONFIG": winreg.HKEY_CURRENT_CONFIG,
+    }
+    _REG_TYPES = {
+        "REG_SZ": winreg.REG_SZ,
+        "REG_EXPAND_SZ": winreg.REG_EXPAND_SZ,
+        "REG_DWORD": winreg.REG_DWORD,
+        "REG_QWORD": winreg.REG_QWORD,
+        "REG_BINARY": winreg.REG_BINARY,
+        "REG_MULTI_SZ": winreg.REG_MULTI_SZ,
+    }
 else:
     HAS_WINREG = False
+    _ROOT_KEYS: dict = {}
+    _REG_TYPES: dict = {}
 
-_ROOT_KEYS = {
-    "HKCR": getattr(globals().get("winreg"), "HKEY_CLASSES_ROOT", None),
-    "HKEY_CLASSES_ROOT": getattr(globals().get("winreg"), "HKEY_CLASSES_ROOT", None),
-    "HKCU": getattr(globals().get("winreg"), "HKEY_CURRENT_USER", None),
-    "HKEY_CURRENT_USER": getattr(globals().get("winreg"), "HKEY_CURRENT_USER", None),
-    "HKLM": getattr(globals().get("winreg"), "HKEY_LOCAL_MACHINE", None),
-    "HKEY_LOCAL_MACHINE": getattr(globals().get("winreg"), "HKEY_LOCAL_MACHINE", None),
-    "HKU": getattr(globals().get("winreg"), "HKEY_USERS", None),
-    "HKEY_USERS": getattr(globals().get("winreg"), "HKEY_USERS", None),
-    "HKCC": getattr(globals().get("winreg"), "HKEY_CURRENT_CONFIG", None),
-    "HKEY_CURRENT_CONFIG": getattr(globals().get("winreg"), "HKEY_CURRENT_CONFIG", None),
-}
+# Keys that reg_write is allowed to target without --allow-reg-write-all.
+# Restricted to per-user software and environment to prevent system-level damage.
+SAFE_REG_WRITE_PREFIXES: tuple[str, ...] = (
+    "HKCU\\SOFTWARE\\",
+    "HKEY_CURRENT_USER\\SOFTWARE\\",
+    "HKCU\\Environment",
+    "HKEY_CURRENT_USER\\Environment",
+)
 
-_REG_TYPES = {
-    "REG_SZ": getattr(globals().get("winreg"), "REG_SZ", None),
-    "REG_EXPAND_SZ": getattr(globals().get("winreg"), "REG_EXPAND_SZ", None),
-    "REG_DWORD": getattr(globals().get("winreg"), "REG_DWORD", None),
-    "REG_QWORD": getattr(globals().get("winreg"), "REG_QWORD", None),
-    "REG_BINARY": getattr(globals().get("winreg"), "REG_BINARY", None),
-    "REG_MULTI_SZ": getattr(globals().get("winreg"), "REG_MULTI_SZ", None),
-}
+# Set to True by --allow-reg-write-all (tier3 only)
+allow_reg_write_all: bool = False
 
 
 def _parse_key(key: str) -> tuple:
@@ -64,6 +76,14 @@ def reg_write(key: str, value_name: str, data: str, reg_type: str = "REG_SZ") ->
     """Write a registry value."""
     if not HAS_WINREG:
         return "Error: Registry operations only available on Windows."
+    if not allow_reg_write_all:
+        key_upper = key.upper().replace("/", "\\")
+        if not any(key_upper.startswith(prefix.upper()) for prefix in SAFE_REG_WRITE_PREFIXES):
+            return (
+                f"RegWrite blocked: '{key}' is outside the safe write allowlist "
+                f"({', '.join(SAFE_REG_WRITE_PREFIXES)}). "
+                "Use --allow-reg-write-all to permit writes to arbitrary keys (requires tier3)."
+            )
     try:
         root, subkey = _parse_key(key)
         rtype = _REG_TYPES.get(reg_type.upper())

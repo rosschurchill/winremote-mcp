@@ -100,6 +100,18 @@ def _is_loopback_redirect_uri(redirect_uri: str) -> bool:
 
 TOKEN_LIFETIME = 3600  # 1 hour
 CODE_LIFETIME = 300  # 5 minutes
+_MAX_STORE_ENTRIES = 1000
+
+
+def _evict_expired(store: OAuthStore) -> None:
+    """Remove expired codes and tokens from the store. Called on each authorize request."""
+    now = time.time()
+    expired_codes = [k for k, v in store.codes.items() if now > v.expires_at]
+    for k in expired_codes:
+        store.codes.pop(k, None)
+    expired_tokens = [k for k, v in store.tokens.items() if now > v.expires_at]
+    for k in expired_tokens:
+        store.tokens.pop(k, None)
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +213,13 @@ def build_oauth_routes(
         if redirect_uri not in client.redirect_uris:
             client.redirect_uris.append(redirect_uri)
 
+        _evict_expired(store)
+        if len(store.codes) >= _MAX_STORE_ENTRIES:
+            return JSONResponse(
+                {"error": "server_error", "error_description": "authorization server busy"},
+                status_code=503,
+            )
+
         # This MCP compatibility flow has no browser login page. It is only safe
         # for pre-provisioned confidential clients because token exchange below
         # requires the configured client secret.
@@ -261,7 +280,7 @@ def build_oauth_routes(
             )
 
         if time.time() > auth_code.expires_at:
-            del store.codes[code_value]
+            store.codes.pop(code_value, None)
             return JSONResponse({"error": "invalid_grant", "error_description": "code expired"}, status_code=400)
 
         if not _verify_pkce(code_verifier, auth_code.code_challenge, auth_code.code_challenge_method):
@@ -270,7 +289,7 @@ def build_oauth_routes(
             )
 
         # Consume code (one-time use)
-        del store.codes[code_value]
+        store.codes.pop(code_value, None)
 
         # Validate client_secret if the client has one configured
         client = store.clients.get(client_id)
@@ -280,7 +299,9 @@ def build_oauth_routes(
         if not provided_secret or not secrets.compare_digest(provided_secret, client.client_secret):
             return JSONResponse({"error": "invalid_client"}, status_code=401)
 
-        # Issue access token
+        # Issue access token (cap store size)
+        if len(store.tokens) >= _MAX_STORE_ENTRIES:
+            _evict_expired(store)
         access_token = secrets.token_urlsafe(48)
         store.tokens[access_token] = AccessToken(
             token=access_token,
@@ -315,6 +336,6 @@ def validate_oauth_token(store: OAuthStore, token: str) -> bool:
     if at is None:
         return False
     if time.time() > at.expires_at:
-        del store.tokens[token]
+        store.tokens.pop(token, None)
         return False
     return True
