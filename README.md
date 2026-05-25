@@ -1,15 +1,29 @@
 # WinRemote MCP — Run MCP Servers Remotely on Windows
 
+> **This is a security-hardened fork of [dddabtc/winremote-mcp](https://github.com/dddabtc/winremote-mcp).**
+> A full five-pillar audit identified 7 critical security vulnerabilities and 37 additional issues.
+> All 44 have been resolved. See [SECURITY_FIXES.md](SECURITY_FIXES.md) for the full report.
+
 [![PyPI version](https://img.shields.io/pypi/v/winremote-mcp)](https://pypi.org/project/winremote-mcp/)
 [![Python](https://img.shields.io/pypi/pyversions/winremote-mcp)](https://pypi.org/project/winremote-mcp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/dddabtc/winremote-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/dddabtc/winremote-mcp/actions/workflows/ci.yml)
-[![Downloads](https://static.pepy.tech/badge/winremote-mcp)](https://pepy.tech/projects/winremote-mcp)
-[![win-remote-mcp MCP server](https://glama.ai/mcp/servers/dddabtc/win-remote-mcp/badges/score.svg)](https://glama.ai/mcp/servers/dddabtc/win-remote-mcp)
+[![Tests](https://img.shields.io/badge/tests-135%2F135-brightgreen)](SECURITY_FIXES.md)
 
 **The ultimate Windows MCP server for remote desktop control and automation.** Control any Windows machine through the Model Context Protocol — perfect for AI agents, Claude Desktop. Transform your Windows desktop into a powerful, remotely-accessible automation endpoint.
 
 Run **on the Windows machine** you want to control. Built with [FastMCP](https://github.com/jlowin/fastmcp) and the [Model Context Protocol](https://modelcontextprotocol.io/).
+
+## Security hardening (this fork)
+
+| Severity | Count | Key issues fixed |
+|----------|-------|-----------------|
+| Critical | 7 | DNS rebinding TOCTOU, timing-safe auth, path traversal sandbox, UNC hash leak, registry allowlist, schtasks injection, remote-bind bypass |
+| High | 8 | Subprocess cancellation, atomic file writes, thread-safe task state, OAuth race conditions, UTF-8 encoding everywhere |
+| Medium/Low | 29 | Per-category semaphore timeouts, file read limits, FD leak, module split, named constants, type annotations |
+
+New CLI flags added: `--file-root <path>` · `--allow-reg-write-all`
+
+Full details: **[SECURITY_FIXES.md](SECURITY_FIXES.md)**
 
 ## Quickstart (30 seconds)
 
