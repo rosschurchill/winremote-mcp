@@ -9,8 +9,7 @@ class TestHealthEndpoint:
     """Test the /health HTTP endpoint."""
 
     def test_health_returns_ok(self):
-        """Verify the health endpoint returns status ok."""
-        from winremote import __version__
+        """Verify the health endpoint returns status ok with dependency flags."""
         from winremote.__main__ import mcp
 
         # Use Starlette test client on the FastMCP app
@@ -23,7 +22,8 @@ class TestHealthEndpoint:
             assert resp.status_code == 200
             data = resp.json()
             assert data["status"] == "ok"
-            assert data["version"] == __version__
+            assert "pyautogui" in data
+            assert "win32" in data
         except Exception:
             # FastMCP internal API may vary; skip gracefully
             pytest.skip("Cannot create test client from FastMCP app")

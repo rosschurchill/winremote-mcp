@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import datetime
 import heapq
+import platform
 import time
 
 import psutil
@@ -95,8 +97,6 @@ def kill_process(pid: int = 0, name: str = "") -> str:
 
 def get_system_info() -> str:
     """Return system info: CPU, memory, disk, network, uptime."""
-    import datetime
-    import platform
 
     cpu_pct = psutil.cpu_percent(interval=0.5)
     cpu_count = psutil.cpu_count()

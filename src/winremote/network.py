@@ -8,6 +8,8 @@ import subprocess
 
 def ping(host: str, count: int = 4) -> str:
     """Ping a host."""
+    if host.startswith("-"):
+        return f"Ping error: invalid host '{host}'"
     try:
         result = subprocess.run(
             ["ping", "-n", str(count), host],

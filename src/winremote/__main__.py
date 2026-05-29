@@ -137,7 +137,11 @@ mcp = FastMCP(
 
 @mcp.custom_route("/health", methods=["GET"])
 async def health_check(request):
-    return JSONResponse({"status": "ok", "version": __version__})
+    return JSONResponse({
+        "status": "ok",
+        "pyautogui": PYAUTOGUI_IMPORT_ERROR is None,
+        "win32": desktop.HAS_WIN32,
+    })
 
 
 # ---------------------------------------------------------------------------

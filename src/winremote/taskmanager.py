@@ -47,6 +47,8 @@ class ToolCategory(str, Enum):
     SHELL = "shell"
     # Network tools — fully concurrent.
     NETWORK = "network"
+    # State-mutating system ops (kill, registry write, service control) — lower limit than QUERY.
+    SYSTEM = "system"
 
 
 # Derive TOOL_CATEGORIES from the single-source TOOL_REGISTRY
@@ -63,6 +65,7 @@ CATEGORY_LIMITS: dict[ToolCategory, int] = {
     ToolCategory.QUERY: 10,
     ToolCategory.SHELL: 3,
     ToolCategory.NETWORK: 5,
+    ToolCategory.SYSTEM: 3,  # Serialise destructive ops; lower than QUERY read limit
 }
 
 # Max seconds to wait for a category semaphore before returning a timeout error
@@ -72,6 +75,7 @@ CATEGORY_ACQUIRE_TIMEOUTS: dict[ToolCategory, int] = {
     ToolCategory.QUERY: 15,
     ToolCategory.SHELL: 60,
     ToolCategory.NETWORK: 15,
+    ToolCategory.SYSTEM: 30,
 }
 
 

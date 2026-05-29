@@ -265,8 +265,6 @@ def minimize_all() -> str:
 
 def launch_app(name: str, args: str = "") -> str:
     """Launch application via PowerShell Start-Process."""
-    import subprocess
-
     try:
         safe_name = name.replace("'", "''")
         cmd = f"Start-Process '{safe_name}'"
@@ -361,8 +359,6 @@ def lock_screen() -> str:
 
 def show_notification(title: str, message: str) -> str:
     """Show a Windows toast notification via PowerShell."""
-    import subprocess
-
     # Pass title/message as bound parameters (-Title, -Message) so user-supplied
     # text never touches the PowerShell source — only data, never code.
     # [System.Security.SecurityElement]::Escape() handles XML-special chars inside PS.
