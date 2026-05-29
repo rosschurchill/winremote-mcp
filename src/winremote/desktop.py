@@ -360,29 +360,28 @@ def lock_screen() -> str:
 def show_notification(title: str, message: str) -> str:
     """Show a Windows toast notification via PowerShell."""
     import subprocess
-    from xml.sax.saxutils import escape as xml_escape
 
-    safe_title = xml_escape(title)
-    safe_message = xml_escape(message)
-
-    ps = f"""
+    # Pass title/message as bound parameters (-Title, -Message) so user-supplied
+    # text never touches the PowerShell source — only data, never code.
+    # [System.Security.SecurityElement]::Escape() handles XML-special chars inside PS.
+    ps = """
+param($Title, $Message)
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-$template = @"
-<toast>
-  <visual><binding template="ToastGeneric">
-    <text>{safe_title}</text>
-    <text>{safe_message}</text>
-  </binding></visual>
-</toast>
-"@
+$safe_title = [System.Security.SecurityElement]::Escape($Title)
+$safe_msg   = [System.Security.SecurityElement]::Escape($Message)
+$xml_str = '<toast><visual><binding template="ToastGeneric"><text>' + $safe_title + '</text><text>' + $safe_msg + '</text></binding></visual></toast>'
 $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-$xml.LoadXml($template)
+$xml.LoadXml($xml_str)
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
 [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("winremote-mcp").Show($toast)
 """
     try:
-        subprocess.run(["powershell", "-NoProfile", "-Command", ps], timeout=10, capture_output=True)
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps, "-Title", title, "-Message", message],
+            timeout=10,
+            capture_output=True,
+        )
         return "Notification shown"
     except Exception as e:
         return f"Failed: {e}"
