@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import base64
 import getpass
+import http.client
 import io
 import json
 import logging
 import os
 import platform
+import socket
+import ssl
 import subprocess
 import tempfile
 import time
@@ -68,8 +71,9 @@ PROCESS_FILTER_MIN_SCORE = 60
 PROCESS_KILL_MIN_SCORE = 80
 
 # Sandboxed file root — all file operations are restricted to this directory tree.
-# Set to Path.home() by default; overridden at startup via --file-root or config.
-_FILE_ROOT: Path = Path.home()
+# Defaults to ~/winremote-files; override with --file-root at startup.
+# Deliberately narrow: home() exposes ~/.ssh, credentials, and the config file itself.
+_FILE_ROOT: Path = Path.home() / "winremote-files"
 
 
 def _check_path(path: str) -> Path:
@@ -174,23 +178,64 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         raise urllib.error.HTTPError(newurl, code, "Redirects are not allowed", headers, fp)
 
 
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    """HTTPS handler that connects to a pre-resolved IP while preserving the hostname for TLS.
+
+    Rewriting the URL authority to the raw IP breaks TLS — SNI and certificate verification
+    run against the IP, not the hostname, causing SSLCertVerificationError on every real site.
+    This handler pins the TCP connection to the validated IP at the socket layer while keeping
+    the original hostname for SNI and cert validation.
+    """
+
+    def __init__(self, pinned_ip: str):
+        super().__init__()
+        self._pinned_ip = pinned_ip
+
+    def https_open(self, req):
+        pinned = self._pinned_ip
+
+        class _PinnedConn(http.client.HTTPSConnection):
+            def connect(self_conn):
+                ctx = self_conn._context or ssl.create_default_context()
+                sock = socket.create_connection(
+                    (pinned, self_conn.port or 443),
+                    self_conn.timeout,
+                    self_conn.source_address,
+                )
+                self_conn.sock = ctx.wrap_socket(sock, server_hostname=self_conn.host)
+
+        return self.do_open(_PinnedConn, req)
+
+
 def _open_validated_fetch_url(url: str, *, headers: dict[str, str] | None = None, timeout: int = 15):
     """Open a validated URL, connecting to the pre-resolved IP to prevent DNS rebinding.
 
-    Resolves the hostname once, validates all returned IPs, then connects directly
-    to the pinned IP address with the original hostname in the Host header. This
-    eliminates the TOCTOU window between validation and the actual connection.
+    For HTTPS: pins the TCP connection to the validated IP at the socket layer while keeping
+    the original hostname for TLS SNI and certificate verification.
+    For HTTP: rewrites the URL netloc to the pinned IP (no TLS to break). IPv6 addresses
+    are properly bracketed in the netloc.
+    Both paths eliminate the DNS rebinding TOCTOU window between validation and connection.
     """
     allowed, reason, pinned_ip = _resolve_and_validate(url)
     if not allowed:
         raise ValueError(reason)
 
-    # Build URL with pinned IP so urllib never re-resolves the hostname
     parsed = urlparse(url)
-    netloc_with_ip = pinned_ip if not parsed.port else f"{pinned_ip}:{parsed.port}"
-    pinned_url = urlunparse(parsed._replace(netloc=netloc_with_ip))
-    req = urllib.request.Request(pinned_url, headers={"Host": parsed.hostname, **(headers or {})})
-    opener = urllib.request.build_opener(_NoRedirectHandler)
+
+    if parsed.scheme == "https":
+        req = urllib.request.Request(url, headers={**(headers or {})})
+        opener = urllib.request.build_opener(_NoRedirectHandler, _PinnedHTTPSHandler(pinned_ip))
+    else:
+        # HTTP: rewrite netloc to pinned IP; bracket IPv6 literals
+        if ":" in pinned_ip:
+            bracket_ip = f"[{pinned_ip}]"
+            netloc_with_ip = bracket_ip if not parsed.port else f"{bracket_ip}:{parsed.port}"
+        else:
+            netloc_with_ip = pinned_ip if not parsed.port else f"{pinned_ip}:{parsed.port}"
+        pinned_url = urlunparse(parsed._replace(netloc=netloc_with_ip))
+        req = urllib.request.Request(pinned_url, headers={"Host": parsed.hostname, **(headers or {})})
+        opener = urllib.request.build_opener(_NoRedirectHandler)
+
     try:
         return opener.open(req, timeout=timeout)
     except urllib.error.HTTPError as exc:

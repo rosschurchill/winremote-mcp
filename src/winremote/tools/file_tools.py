@@ -32,19 +32,19 @@ def FileRead(path: str, encoding: str = "utf-8") -> str:
     """
     try:
         p = _main._check_path(path)
-        if not p.exists():
-            return f"File not found: {path}"
-        if encoding == "binary":
-            data = p.read_bytes()
-            return base64.b64encode(data).decode()
-        else:
-            with p.open(encoding=encoding, errors="replace") as fh:
-                text = fh.read(100_001)
-            if len(text) > 100_000:
-                text = text[:100_000] + "\n\n[... truncated at 100KB]"
-            return text
-    except Exception as e:
-        return f"FileRead error: {e}"
+    except ValueError as e:
+        return str(e)
+    if not p.exists():
+        return f"File not found: {path}"
+    if encoding == "binary":
+        data = p.read_bytes()
+        return base64.b64encode(data).decode()
+    else:
+        with p.open(encoding=encoding, errors="replace") as fh:
+            text = fh.read(100_001)
+        if len(text) > 100_000:
+            text = text[:100_000] + "\n\n[... truncated at 100KB]"
+        return text
 
 
 @_main.mcp.tool(
@@ -65,30 +65,31 @@ def FileWrite(path: str, content: str, encoding: str = "utf-8", append: bool | s
     """
     try:
         p = _main._check_path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        if _main._tobool(append):
-            with open(p, "a", encoding=encoding) as f:
+    except ValueError as e:
+        return str(e)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if _main._tobool(append):
+        with open(p, "a", encoding=encoding) as f:
+            f.write(content)
+    else:
+        fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".winremote_tmp_")
+        try:
+            with os.fdopen(fd, "w", encoding=encoding) as f:
                 f.write(content)
-        else:
+            os.replace(tmp, p)
+        except UnicodeEncodeError as e:
             try:
-                fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".winremote_tmp_")
-                try:
-                    with os.fdopen(fd, "w", encoding=encoding) as f:
-                        f.write(content)
-                    os.replace(tmp, p)
-                except UnicodeEncodeError as e:
-                    raise ValueError(f"Encoding error writing to {path}: {e}") from e
-                except Exception:
-                    try:
-                        os.unlink(tmp)
-                    except OSError:
-                        pass
-                    raise
-            except Exception:
-                raise
-        return f"Written {len(content)} chars to {path}"
-    except Exception as e:
-        return f"FileWrite error: {e}"
+                os.unlink(tmp)
+            except OSError:
+                pass
+            return f"Encoding error writing to {path}: {e}"
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+    return f"Written {len(content)} chars to {path}"
 
 
 @_main.mcp.tool(
@@ -105,42 +106,41 @@ def FileList(path: str = ".", show_hidden: bool | str = False) -> str:
         path: Directory path.
         show_hidden: Include hidden files/folders.
     """
+    from tabulate import tabulate
     try:
-        from tabulate import tabulate
-
         p = _main._check_path(path)
-        if not p.is_dir():
-            return f"Not a directory: {path}"
+    except ValueError as e:
+        return str(e)
+    if not p.is_dir():
+        return f"Not a directory: {path}"
 
-        rows = []
-        entries = sorted(os.scandir(p), key=lambda e: e.name)
-        show_hidden_flag = _main._tobool(show_hidden)
-        for entry in entries:
-            name = entry.name
-            if not show_hidden_flag and name.startswith("."):
-                continue
-            try:
-                stat = entry.stat()
-                size = stat.st_size
-                mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
-                kind = "DIR" if entry.is_dir() else "FILE"
-                if entry.is_dir():
-                    size_str = "<DIR>"
-                elif size < 1024:
-                    size_str = f"{size}B"
-                elif size < 1048576:
-                    size_str = f"{size // 1024}KB"
-                else:
-                    size_str = f"{size // 1048576}MB"
-                rows.append([kind, name, size_str, mtime])
-            except Exception:
-                rows.append(["?", name, "?", "?"])
+    rows = []
+    entries = sorted(os.scandir(p), key=lambda e: e.name)
+    show_hidden_flag = _main._tobool(show_hidden)
+    for entry in entries:
+        name = entry.name
+        if not show_hidden_flag and name.startswith("."):
+            continue
+        try:
+            stat = entry.stat()
+            size = stat.st_size
+            mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+            kind = "DIR" if entry.is_dir() else "FILE"
+            if entry.is_dir():
+                size_str = "<DIR>"
+            elif size < 1024:
+                size_str = f"{size}B"
+            elif size < 1048576:
+                size_str = f"{size // 1024}KB"
+            else:
+                size_str = f"{size // 1048576}MB"
+            rows.append([kind, name, size_str, mtime])
+        except Exception:
+            rows.append(["?", name, "?", "?"])
 
-        if not rows:
-            return "Directory is empty."
-        return tabulate(rows, headers=["Type", "Name", "Size", "Modified"], tablefmt="simple")
-    except Exception as e:
-        return f"FileList error: {e}"
+    if not rows:
+        return "Directory is empty."
+    return tabulate(rows, headers=["Type", "Name", "Size", "Modified"], tablefmt="simple")
 
 
 @_main.mcp.tool(
@@ -161,34 +161,34 @@ def FileSearch(pattern: str, path: str = ".", recursive: bool | str = True, limi
     """
     try:
         p = _main._check_path(path)
-        gen = p.rglob(pattern) if _main._tobool(recursive) else p.glob(pattern)
-        matches: list = []
-        total = 0
-        for m in gen:
-            total += 1
-            if len(matches) < limit:
-                matches.append(m)
-            if total > limit + 1:
-                break
+    except ValueError as e:
+        return str(e)
+    gen = p.rglob(pattern) if _main._tobool(recursive) else p.glob(pattern)
+    matches: list = []
+    total = 0
+    for m in gen:
+        total += 1
+        if len(matches) < limit:
+            matches.append(m)
+        if total > limit + 1:
+            break
 
-        if not matches:
-            return f"No files matching '{pattern}' in {path}"
+    if not matches:
+        return f"No files matching '{pattern}' in {path}"
 
-        lines = []
-        for m in matches:
-            try:
-                size = m.stat().st_size
-                lines.append(f"  {m} ({size} bytes)")
-            except Exception:
-                lines.append(f"  {m}")
+    lines = []
+    for m in matches:
+        try:
+            size = m.stat().st_size
+            lines.append(f"  {m} ({size} bytes)")
+        except Exception:
+            lines.append(f"  {m}")
 
-        result = f"Found {total} files"
-        if total > limit:
-            result += f" (showing first {limit})"
-        result += ":\n" + "\n".join(lines)
-        return result
-    except Exception as e:
-        return f"FileSearch error: {e}"
+    result = f"Found {total} files"
+    if total > limit:
+        result += f" (showing first {limit})"
+    result += ":\n" + "\n".join(lines)
+    return result
 
 
 @_main.mcp.tool(
@@ -206,13 +206,13 @@ def FileDownload(path: str) -> str:
     """
     try:
         p = _main._check_path(path)
-        if not p.exists():
-            return f"File not found: {path}"
-        data = p.read_bytes()
-        b64 = base64.b64encode(data).decode()
-        return f"base64:{len(data)}bytes:{b64}"
-    except Exception as e:
-        return f"FileDownload error: {e}"
+    except ValueError as e:
+        return str(e)
+    if not p.exists():
+        return f"File not found: {path}"
+    data = p.read_bytes()
+    b64 = base64.b64encode(data).decode()
+    return f"base64:{len(data)}bytes:{b64}"
 
 
 @_main.mcp.tool(
@@ -229,13 +229,13 @@ def FileUpload(path: str, data_base64: str) -> str:
         path: Destination file path.
         data_base64: Base64-encoded file content.
     """
+    if len(data_base64) > _main.MAX_UPLOAD_B64_BYTES:
+        return "FileUpload error: data exceeds maximum size (100MB base64)"
     try:
-        if len(data_base64) > _main.MAX_UPLOAD_B64_BYTES:
-            return "FileUpload error: data exceeds maximum size (100MB base64)"
         p = _main._check_path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        data = base64.b64decode(data_base64, validate=True)
-        p.write_bytes(data)
-        return f"Written {len(data)} bytes to {path}"
-    except Exception as e:
-        return f"FileUpload error: {e}"
+    except ValueError as e:
+        return str(e)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    data = base64.b64decode(data_base64, validate=True)
+    p.write_bytes(data)
+    return f"Written {len(data)} bytes to {path}"

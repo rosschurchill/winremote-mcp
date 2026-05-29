@@ -25,10 +25,7 @@ def Ping(host: str, count: int = 4) -> str:
         count: Number of ping requests (default 4).
     """
     from winremote import network
-    try:
-        return network.ping(host, count)
-    except Exception as e:
-        return f"Ping error: {e}"
+    return network.ping(host, count)
 
 
 @_main.mcp.tool(
@@ -47,10 +44,7 @@ def PortCheck(host: str, port: int, timeout: float = 5.0) -> str:
         timeout: Connection timeout in seconds (default 5).
     """
     from winremote import network
-    try:
-        return network.port_check(host, port, timeout)
-    except Exception as e:
-        return f"PortCheck error: {e}"
+    return network.port_check(host, port, timeout)
 
 
 @_main.mcp.tool(
@@ -68,7 +62,4 @@ def NetConnections(filter_str: str = "", limit: int = 50) -> str:
         limit: Maximum number of connections to return (default 50).
     """
     from winremote import network
-    try:
-        return network.net_connections(filter_str, limit=limit)
-    except Exception as e:
-        return f"NetConnections error: {e}"
+    return network.net_connections(filter_str, limit=limit)

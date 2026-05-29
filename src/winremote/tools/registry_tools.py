@@ -25,10 +25,7 @@ def RegRead(key: str, value_name: str) -> str:
         value_name: Name of the value to read.
     """
     from winremote import registry
-    try:
-        return registry.reg_read(key, value_name)
-    except Exception as e:
-        return f"RegRead error: {e}"
+    return registry.reg_read(key, value_name)
 
 
 @_main.mcp.tool(
@@ -48,7 +45,4 @@ def RegWrite(key: str, value_name: str, data: str, reg_type: str = "REG_SZ") -> 
         reg_type: Registry type: REG_SZ, REG_EXPAND_SZ, REG_DWORD, REG_QWORD, REG_BINARY, REG_MULTI_SZ.
     """
     from winremote import registry
-    try:
-        return registry.reg_write(key, value_name, data, reg_type)
-    except Exception as e:
-        return f"RegWrite error: {e}"
+    return registry.reg_write(key, value_name, data, reg_type)

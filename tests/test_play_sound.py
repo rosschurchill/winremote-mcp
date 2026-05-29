@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+# Patch the file root to "/" so Windows-style test paths pass path validation on Linux.
+_ROOT_PATCH = patch("winremote.__main__._FILE_ROOT", Path("/"))
 
 
 def _call_tool(**kwargs):
@@ -13,6 +17,7 @@ def _call_tool(**kwargs):
 
 
 class TestPlaySound:
+    @_ROOT_PATCH
     @patch("subprocess.run")
     def test_play_sound_with_path(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
@@ -29,6 +34,7 @@ class TestPlaySound:
         result = _call_tool(path=None, url=None)
         assert "error" in result.lower() or "provide" in result.lower()
 
+    @_ROOT_PATCH
     @patch("subprocess.run")
     def test_play_sound_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired("powershell", 30)
@@ -49,6 +55,7 @@ class TestPlaySound:
         result = _call_tool(url="https://example.com/test.wav")
         assert "Played" in result or "task:" in result or "error" in result.lower()
 
+    @_ROOT_PATCH
     @patch("subprocess.run")
     def test_play_sound_mp3(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0, stderr="")

@@ -34,42 +34,39 @@ def Shell(command: str, timeout: int = 30, cwd: str = "") -> str:
         cwd: Working directory. If provided, the command runs inside that directory.
     """
     from winremote.taskmanager import get_current_cancel_event
-    try:
-        if cwd:
-            safe_cwd = cwd.replace("'", "''")
-            command = f"Set-Location -LiteralPath '{safe_cwd}'; {command}"
-        cancel_event = get_current_cancel_event()
-        ps_cmd = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " + command
-        proc = subprocess.Popen(
-            ["powershell", "-NoProfile", "-Command", ps_cmd],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        deadline = time.time() + timeout
-        while True:
-            try:
-                stdout, stderr = proc.communicate(timeout=0.5)
-                break
-            except subprocess.TimeoutExpired:
-                if cancel_event and cancel_event.is_set():
-                    proc.kill()
-                    proc.communicate()
-                    return "Shell cancelled"
-                if time.time() >= deadline:
-                    proc.kill()
-                    proc.communicate()
-                    return f"Command timed out after {timeout}s"
-        output = stdout
-        if stderr:
-            output += f"\n[STDERR] {stderr}"
-        if proc.returncode != 0:
-            output += f"\n[Exit code: {proc.returncode}]"
-        return output.strip() or "(no output)"
-    except Exception as e:
-        return f"Shell error: {e}"
+    if cwd:
+        safe_cwd = cwd.replace("'", "''")
+        command = f"Set-Location -LiteralPath '{safe_cwd}'; {command}"
+    cancel_event = get_current_cancel_event()
+    ps_cmd = "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " + command
+    proc = subprocess.Popen(
+        ["powershell", "-NoProfile", "-Command", ps_cmd],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    deadline = time.time() + timeout
+    while True:
+        try:
+            stdout, stderr = proc.communicate(timeout=0.5)
+            break
+        except subprocess.TimeoutExpired:
+            if cancel_event and cancel_event.is_set():
+                proc.kill()
+                proc.communicate()
+                return "Shell cancelled"
+            if time.time() >= deadline:
+                proc.kill()
+                proc.communicate()
+                return f"Command timed out after {timeout}s"
+    output = stdout
+    if stderr:
+        output += f"\n[STDERR] {stderr}"
+    if proc.returncode != 0:
+        output += f"\n[Exit code: {proc.returncode}]"
+    return output.strip() or "(no output)"
 
 
 @_main.mcp.tool(
@@ -92,10 +89,7 @@ def ListProcesses(
         limit: Max number of processes to return.
     """
     from winremote import process_mgr
-    try:
-        return process_mgr.list_processes(filter_str=name_filter, sort_by=sort_by, limit=limit)
-    except Exception as e:
-        return f"ListProcesses error: {e}"
+    return process_mgr.list_processes(filter_str=name_filter, sort_by=sort_by, limit=limit)
 
 
 @_main.mcp.tool(
@@ -113,10 +107,7 @@ def KillProcess(pid: int = 0, name: str = "") -> str:
         name: Process name (fuzzy matched).
     """
     from winremote import process_mgr
-    try:
-        return process_mgr.kill_process(pid=pid, name=name)
-    except Exception as e:
-        return f"KillProcess error: {e}"
+    return process_mgr.kill_process(pid=pid, name=name)
 
 
 @_main.mcp.tool(
@@ -129,10 +120,7 @@ def KillProcess(pid: int = 0, name: str = "") -> str:
 def GetSystemInfo() -> str:
     """Get system information: CPU, memory, disk, network, uptime."""
     from winremote import process_mgr
-    try:
-        return process_mgr.get_system_info()
-    except Exception as e:
-        return f"GetSystemInfo error: {e}"
+    return process_mgr.get_system_info()
 
 
 @_main.mcp.tool(annotations=ToolAnnotations(title="ReconnectSession", readOnlyHint=False))
