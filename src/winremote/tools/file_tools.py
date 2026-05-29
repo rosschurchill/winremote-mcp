@@ -41,9 +41,9 @@ def FileRead(path: str, encoding: str = "utf-8") -> str:
         return base64.b64encode(data).decode()
     else:
         with p.open(encoding=encoding, errors="replace") as fh:
-            text = fh.read(100_001)
-        if len(text) > 100_000:
-            text = text[:100_000] + "\n\n[... truncated at 100KB]"
+            text = fh.read(_main.MAX_FILE_READ_CHARS + 1)
+        if len(text) > _main.MAX_FILE_READ_CHARS:
+            text = text[:_main.MAX_FILE_READ_CHARS] + "\n\n[... truncated at 100KB]"
         return text
 
 
@@ -67,6 +67,8 @@ def FileWrite(path: str, content: str, encoding: str = "utf-8", append: bool | s
         p = _main._check_path(path)
     except ValueError as e:
         return str(e)
+    if len(content) > _main.MAX_WRITE_CHARS:
+        return f"FileWrite error: content exceeds {_main.MAX_WRITE_CHARS // 1024 // 1024}MB limit"
     p.parent.mkdir(parents=True, exist_ok=True)
     if _main._tobool(append):
         with open(p, "a", encoding=encoding) as f:

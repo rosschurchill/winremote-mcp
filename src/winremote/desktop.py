@@ -63,6 +63,8 @@ def _tobool(v: bool | str) -> bool:
     return str(v).lower() in ("true", "1", "yes")
 
 
+_WINDOW_MATCH_MIN_SCORE = 50
+
 _SYSTEM_LANGUAGE: str | None = None
 
 
@@ -230,7 +232,7 @@ def focus_window(title: str | None = None, handle: int | None = None) -> str:
             if score > best_score:
                 best_score = score
                 hwnd = w.handle
-        if best_score < 50:
+        if best_score < _WINDOW_MATCH_MIN_SCORE:
             return f"No window matching '{title}' (best score {best_score})"
 
     if not hwnd:
@@ -398,78 +400,97 @@ def grab_screenshot_with_reconnect():
         return ImageGrab.grab()
 
 
+def _query_session_win32ts() -> tuple[int | None, bool]:
+    """Try win32ts.WTSEnumerateSessions to find the user session.
+
+    Returns (session_id, is_disconnected) on success, or (None, False) on any error
+    (including win32ts not being available).
+    """
+    try:
+        import win32ts
+
+        WTS_DISCONNECTED = 4
+        sessions = win32ts.WTSEnumerateSessions(win32ts.WTS_CURRENT_SERVER_HANDLE)
+        for sess in sessions:
+            sid = sess["SessionId"]
+            state = sess["State"]
+            name = sess.get("WinStationName", "").lower()
+            if name in ("services", "rdp-tcp", ""):
+                continue
+            logger.debug("win32ts session id=%s name=%s state=%s", sid, name, state)
+            return sid, state == WTS_DISCONNECTED
+    except Exception:
+        pass
+    return None, False
+
+
+def _query_session_text_parser() -> tuple[int | None, bool]:
+    """Parse 'query session' output to find the user session.
+
+    Returns (session_id, is_disconnected), or raises on subprocess failure.
+    The 'query session' output has fixed-width columns:
+      SESSIONNAME  USERNAME  ID  STATE  TYPE  DEVICE
+    State values: Active, Disc (disconnected), Listen, Idle
+    Chinese Windows: 已断开 / 运行中 for Disc / Active
+    """
+    result = subprocess.run(
+        ["query", "session"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to query sessions: {result.stderr}")
+
+    lines = result.stdout.strip().split("\n")
+    for line in lines[1:]:
+        line = line.lstrip(">").strip()
+        if not line:
+            continue
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        name = parts[0].lower()
+        if name in ("services", "rdp-tcp"):
+            continue
+        for i, p in enumerate(parts[1:], 1):
+            if p.isdigit():
+                sid = int(p)
+                if i + 1 < len(parts):
+                    state = parts[i + 1].lower()
+                    has_user = i > 1 and not parts[i - 1].isdigit()
+                    if has_user or name == "console":
+                        is_disconnected = state in ("disc", "断开", "已断开", "disconnected")
+                        logger.debug(
+                            "query session parsed id=%s state=%s disconnected=%s",
+                            sid,
+                            state,
+                            is_disconnected,
+                        )
+                        return sid, is_disconnected
+                break
+    return None, False
+
+
 def ensure_session_connected(force: bool = False) -> str | None:
     """Reconnect a disconnected desktop session to console.
 
     Returns None on success or if already connected, error string on failure.
     Tries win32ts.WTSEnumerateSessions first (locale-independent); falls back
     to the 'query session' text parser when pywin32 is unavailable.
-
-    The 'query session' output has fixed-width columns:
-      SESSIONNAME  USERNAME  ID  STATE  TYPE  DEVICE
-    State values: Active, Disc (disconnected), Listen, Idle
-    Chinese Windows: 已断开 / 运行中 for Disc / Active
     """
     try:
-        user_session_id = None
-        is_disconnected = False
-
         # Preferred: win32ts API — WTSDisconnected == state 4 regardless of locale
-        try:
-            import win32ts
+        user_session_id, is_disconnected = _query_session_win32ts()
 
-            WTS_DISCONNECTED = 4
-            sessions = win32ts.WTSEnumerateSessions(win32ts.WTS_CURRENT_SERVER_HANDLE)
-            for sess in sessions:
-                sid = sess["SessionId"]
-                state = sess["State"]
-                name = sess.get("WinStationName", "").lower()
-                if name in ("services", "rdp-tcp", ""):
-                    continue
-                logger.debug("win32ts session id=%s name=%s state=%s", sid, name, state)
-                user_session_id = sid
-                is_disconnected = state == WTS_DISCONNECTED
-                break
-        except Exception:
+        if user_session_id is None:
             # Fall back to text parser when win32ts is not available
-            result = subprocess.run(
-                ["query", "session"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=10,
-            )
-            if result.returncode != 0:
-                return f"Failed to query sessions: {result.stderr}"
-
-            lines = result.stdout.strip().split("\n")
-            for line in lines[1:]:
-                line = line.lstrip(">").strip()
-                if not line:
-                    continue
-                parts = line.split()
-                if len(parts) < 4:
-                    continue
-                name = parts[0].lower()
-                if name in ("services", "rdp-tcp"):
-                    continue
-                for i, p in enumerate(parts[1:], 1):
-                    if p.isdigit():
-                        sid = int(p)
-                        if i + 1 < len(parts):
-                            state = parts[i + 1].lower()
-                            has_user = i > 1 and not parts[i - 1].isdigit()
-                            if has_user or name == "console":
-                                user_session_id = sid
-                                is_disconnected = state in ("disc", "断开", "已断开", "disconnected")
-                                logger.debug(
-                                    "query session parsed id=%s state=%s disconnected=%s",
-                                    sid,
-                                    state,
-                                    is_disconnected,
-                                )
-                        break
+            try:
+                user_session_id, is_disconnected = _query_session_text_parser()
+            except RuntimeError as e:
+                return str(e)
 
         if user_session_id is None:
             return "No user session found"

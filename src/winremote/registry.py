@@ -42,6 +42,15 @@ SAFE_REG_WRITE_PREFIXES: tuple[str, ...] = (
     "HKEY_CURRENT_USER\\Environment",
 )
 
+# Autostart/persistence subtrees that are explicitly blocked even within the safe allowlist.
+# These keys enable persistence mechanisms and must require --allow-reg-write-all.
+_DENIED_REG_WRITE_PREFIXES: tuple[str, ...] = (
+    "HKCU\\SOFTWARE\\MICROSOFT\\WINDOWS\\CURRENTVERSION\\RUN",
+    "HKEY_CURRENT_USER\\SOFTWARE\\MICROSOFT\\WINDOWS\\CURRENTVERSION\\RUN",
+    "HKCU\\SOFTWARE\\MICROSOFT\\WINDOWS NT\\CURRENTVERSION\\WINLOGON",
+    "HKEY_CURRENT_USER\\SOFTWARE\\MICROSOFT\\WINDOWS NT\\CURRENTVERSION\\WINLOGON",
+)
+
 # Set to True by --allow-reg-write-all (tier3 only)
 allow_reg_write_all: bool = False
 
@@ -83,6 +92,11 @@ def reg_write(key: str, value_name: str, data: str, reg_type: str = "REG_SZ") ->
                 f"RegWrite blocked: '{key}' is outside the safe write allowlist "
                 f"({', '.join(SAFE_REG_WRITE_PREFIXES)}). "
                 "Use --allow-reg-write-all to permit writes to arbitrary keys (requires tier3)."
+            )
+        if any(key_upper.startswith(prefix.upper()) for prefix in _DENIED_REG_WRITE_PREFIXES):
+            return (
+                f"RegWrite blocked: '{key}' targets an autostart/persistence subtree. "
+                "Use --allow-reg-write-all to permit writes to this key (requires tier3)."
             )
     try:
         root, subkey = _parse_key(key)

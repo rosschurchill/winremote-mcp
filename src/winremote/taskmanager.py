@@ -208,7 +208,7 @@ class TaskManager:
 
             try:
                 if task.is_cancelled:
-                    return f"[task:{task.task_id}] Cancelled before execution"
+                    return f"[task:{task.task_id}] Cancelled: awaiting execution (semaphore not yet acquired)"
 
                 with task._lock:
                     if task.status != TaskStatus.CANCELLED:
@@ -216,7 +216,7 @@ class TaskManager:
                         task.started_at = time.time()
 
                 if task.is_cancelled:
-                    return f"[task:{task.task_id}] Cancelled before execution"
+                    return f"[task:{task.task_id}] Cancelled: before execution started"
 
                 _thread_locals.cancel_event = task._cancel_event
                 try:
@@ -225,7 +225,7 @@ class TaskManager:
                     _thread_locals.cancel_event = None
 
                 if task.is_cancelled:
-                    return f"[task:{task.task_id}] Cancelled during execution"
+                    return f"[task:{task.task_id}] Cancelled: during execution"
 
                 with task._lock:
                     if task.status != TaskStatus.CANCELLED:

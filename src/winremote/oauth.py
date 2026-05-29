@@ -300,8 +300,12 @@ def build_oauth_routes(
             return JSONResponse({"error": "invalid_client"}, status_code=401)
 
         # Issue access token (cap store size)
+        _evict_expired(store)
         if len(store.tokens) >= _MAX_STORE_ENTRIES:
-            _evict_expired(store)
+            return JSONResponse(
+                {"error": "server_error", "error_description": "authorization server busy"},
+                status_code=503,
+            )
         access_token = secrets.token_urlsafe(48)
         store.tokens[access_token] = AccessToken(
             token=access_token,

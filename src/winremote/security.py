@@ -52,7 +52,8 @@ def _resolve_and_validate(url: str, *, allow_private: bool = False) -> tuple[boo
             return False, f"Could not validate resolved address: {raw_addr}", None
         if not allow_private and _is_private_target(ip_obj):
             return False, f"Private, loopback, link-local, multicast, and reserved addresses are blocked: {ip_obj}", None
-        pinned_ip = raw_addr
+        if pinned_ip is None:
+            pinned_ip = raw_addr
 
     if pinned_ip is None:
         return False, "No addresses resolved for hostname", None

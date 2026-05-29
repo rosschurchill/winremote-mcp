@@ -9,6 +9,13 @@ import psutil
 from tabulate import tabulate
 from thefuzz import fuzz
 
+_PROCESS_FILTER_MIN_SCORE = 60
+_PROCESS_KILL_MIN_SCORE = 80
+
+# Prime CPU counters once at import time so the first ListProcesses call isn't always 0.0
+list(psutil.process_iter(["cpu_percent"]))
+time.sleep(0.2)
+
 
 def list_processes(
     filter_str: str = "",
@@ -22,17 +29,13 @@ def list_processes(
         sort_by: Sort key — 'cpu', 'memory', or 'name'.
         limit: Max rows to return.
     """
-    # Prime CPU counters so first sample isn't always 0.0
-    list(psutil.process_iter(["cpu_percent"]))
-    time.sleep(0.2)
-
     procs = []
     for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_info", "status"]):
         try:
             info = p.info
             name = info["name"] or ""
             if filter_str:
-                if fuzz.partial_ratio(filter_str.lower(), name.lower()) < 60:
+                if fuzz.partial_ratio(filter_str.lower(), name.lower()) < _PROCESS_FILTER_MIN_SCORE:
                     continue
             mem_mb = (info["memory_info"].rss / 1048576) if info["memory_info"] else 0
             procs.append(
@@ -78,7 +81,7 @@ def kill_process(pid: int = 0, name: str = "") -> str:
         killed = []
         for p in psutil.process_iter(["pid", "name"]):
             try:
-                if p.info["name"] and fuzz.ratio(name.lower(), p.info["name"].lower()) > 80:
+                if p.info["name"] and fuzz.ratio(name.lower(), p.info["name"].lower()) > _PROCESS_KILL_MIN_SCORE:
                     p.kill()
                     killed.append(f"{p.info['name']} (PID {p.info['pid']})")
             except (psutil.NoSuchProcess, psutil.AccessDenied):

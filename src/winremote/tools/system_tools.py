@@ -182,7 +182,7 @@ def PlaySound(path: str | None = None, url: str | None = None) -> str:
             deadline = time.time() + 30
             try:
                 with _main._open_validated_fetch_url(url, timeout=15) as resp, open(tmp_path, "wb") as out:
-                    remaining = 10 * 1024 * 1024
+                    remaining = _main.MAX_SOUND_DOWNLOAD_BYTES
                     while True:
                         if time.time() > deadline:
                             return "PlaySound error: download timed out (30s limit)"
@@ -191,7 +191,7 @@ def PlaySound(path: str | None = None, url: str | None = None) -> str:
                             break
                         remaining -= len(chunk)
                         if remaining < 0:
-                            return "PlaySound error: remote file exceeds 10 MB limit"
+                            return f"PlaySound error: remote file exceeds {_main.MAX_SOUND_DOWNLOAD_BYTES // 1024 // 1024} MB limit"
                         out.write(chunk)
             except Exception:
                 try:
@@ -273,14 +273,14 @@ def Scrape(url: str) -> str:
         from markdownify import markdownify
 
         with _main._open_validated_fetch_url(url, headers={"User-Agent": "winremote-mcp/0.4"}, timeout=15) as resp:
-            html = resp.read(1024 * 1024 + 1)
-            if len(html) > 1024 * 1024:
-                return "Scrape error: response exceeds 1 MB limit"
+            html = resp.read(_main.MAX_SCRAPE_RESPONSE_BYTES + 1)
+            if len(html) > _main.MAX_SCRAPE_RESPONSE_BYTES:
+                return f"Scrape error: response exceeds {_main.MAX_SCRAPE_RESPONSE_BYTES // 1024 // 1024} MB limit"
             html = html.decode("utf-8", errors="replace")
         md = markdownify(html, heading_style="ATX", strip=["script", "style"])
         # Truncate
-        if len(md) > 50000:
-            md = md[:50000] + "\n\n[... truncated]"
+        if len(md) > _main.MAX_SCRAPE_MD_CHARS:
+            md = md[:_main.MAX_SCRAPE_MD_CHARS] + "\n\n[... truncated]"
         return md
     except Exception as e:
         return f"Scrape error: {e}"
